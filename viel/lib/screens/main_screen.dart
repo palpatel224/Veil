@@ -27,34 +27,36 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: _screens[_currentIndex],
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppColors.mutedGrey, width: 0.5)),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view_rounded),
-              activeIcon: Icon(Icons.grid_view_rounded, color: AppColors.secondaryAccent),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.auto_awesome),
-              activeIcon: Icon(Icons.auto_awesome, color: AppColors.secondaryAccent),
-              label: 'PrivatePilot',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.layers_outlined),
-              activeIcon: Icon(Icons.layers, color: AppColors.secondaryAccent),
-              label: 'Programs',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person, color: AppColors.secondaryAccent),
-              label: 'Profile',
-            ),
+        padding: const EdgeInsets.only(left: 24, right: 24, bottom: 32, top: 16),
+        color: Colors.black, // Match Scaffold background
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildNavItem(0, Icons.grid_view_rounded),
+            _buildNavItem(1, Icons.auto_awesome),
+            _buildNavItem(2, Icons.storefront_outlined),
+            _buildNavItem(3, Icons.person_outline),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon) {
+    bool isSelected = _currentIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: isSelected ? const EdgeInsets.symmetric(horizontal: 24, vertical: 12) : const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.secondaryAccent : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Icon(
+          icon,
+          color: isSelected ? Colors.black : Colors.white70,
+          size: 24,
         ),
       ),
     );

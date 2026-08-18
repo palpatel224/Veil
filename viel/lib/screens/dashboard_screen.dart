@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../theme.dart';
 import 'check_eligibility_screen.dart';
 import 'generate_proof_screen.dart';
@@ -20,14 +21,9 @@ class DashboardScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  RichText(
-                    text: TextSpan(
-                      text: 'v',
-                      style: GoogleFonts.inter(color: AppColors.secondaryAccent, fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -2),
-                      children: [
-                        const TextSpan(text: 'eil', style: TextStyle(color: AppColors.primaryText)),
-                      ],
-                    ),
+                  SvgPicture.asset(
+                    'assets/veil_logo.svg',
+                    height: 28,
                   ),
                   Row(
                     children: [
@@ -231,7 +227,7 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildActiveProgramCard(String title, String amount, String progress, String status, Color statusColor, IconData icon) {
     return Container(
       width: 160,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),

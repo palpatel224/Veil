@@ -27,10 +27,49 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.mutedGrey)),
-                        child: const Icon(Icons.notifications_none, size: 20, color: AppColors.primaryText),
+                      GestureDetector(
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    )
+                                  ]
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.notifications_off_outlined, color: AppColors.primaryAccent, size: 20),
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'No new notifications',
+                                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              backgroundColor: Colors.transparent,
+                              elevation: 0,
+                              behavior: SnackBarBehavior.floating,
+                              margin: const EdgeInsets.all(16),
+                            )
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.mutedGrey)),
+                          child: const Icon(Icons.notifications_none, size: 20, color: AppColors.primaryText),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       const CircleAvatar(
@@ -132,11 +171,11 @@ class DashboardScreen extends StatelessWidget {
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    _buildActiveProgramCard('Shopify Cashback', '\$25.40', '80% completed', 'Eligible', Colors.green, Icons.shopping_bag),
+                    _buildActiveProgramCard(context, 'Shopify Cashback', '\$25.40', '80% completed', 'Eligible', Colors.green, Icons.shopping_bag),
                     const SizedBox(width: 16),
-                    _buildActiveProgramCard('Uni Scholarship', '\$1,200', '60% completed', 'In Progress', AppColors.primaryAccent, Icons.school),
+                    _buildActiveProgramCard(context, 'Uni Scholarship', '\$1,200', '60% completed', 'In Progress', AppColors.primaryAccent, Icons.school),
                     const SizedBox(width: 16),
-                    _buildActiveProgramCard('Uber Rewards', '\$15.00', 'Submitted', 'Pending', Colors.orange, Icons.local_taxi),
+                    _buildActiveProgramCard(context, 'Uber Rewards', '\$15.00', 'Submitted', 'Pending', Colors.orange, Icons.local_taxi),
                   ],
                 ),
               ),
@@ -151,9 +190,9 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              _buildActivityTile('Proof Verified', 'Shopify Cashback', '+\$25.40', 'May 18, 2025', Icons.check_circle_outline, AppColors.secondaryAccent),
-              _buildActivityTile('Proof Submitted', 'Uni Scholarship', '-\$1.20', 'May 18, 2025', Icons.send_outlined, AppColors.primaryAccent),
-              _buildActivityTile('Payment Received', 'Uber Rewards', '+\$15.00', 'May 15, 2025', Icons.download_outlined, Colors.white),
+              _buildActivityTile(context, 'Proof Verified', 'Shopify Cashback', '+\$25.40', 'May 18, 2025', Icons.check_circle_outline, AppColors.secondaryAccent),
+              _buildActivityTile(context, 'Proof Submitted', 'Uni Scholarship', '-\$1.20', 'May 18, 2025', Icons.send_outlined, AppColors.primaryAccent),
+              _buildActivityTile(context, 'Payment Received', 'Uber Rewards', '+\$15.00', 'May 15, 2025', Icons.download_outlined, Colors.white),
               const SizedBox(height: 32),
 
               // Privacy Reassurance
@@ -224,91 +263,199 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActiveProgramCard(String title, String amount, String progress, String status, Color statusColor, IconData icon) {
-    return Container(
-      width: 160,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.mutedGrey),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), shape: BoxShape.circle),
-                child: Icon(icon, color: statusColor, size: 18),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+  Widget _buildActiveProgramCard(BuildContext context, String title, String amount, String progress, String status, Color statusColor, IconData icon) {
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: AppColors.surface,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          builder: (context) => Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('Status: $status', style: TextStyle(color: statusColor, fontSize: 16)),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.primaryAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.star, color: AppColors.primaryAccent),
+                      const SizedBox(width: 12),
+                      Text('Progress: $progress', style: const TextStyle(color: AppColors.primaryAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ),
-                child: Text(status, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
-              )
-            ],
-          ),
-          const Spacer(),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Text(amount, style: TextStyle(color: statusColor, fontSize: 20, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          Container(
-            height: 4,
-            width: double.infinity,
-            decoration: BoxDecoration(color: AppColors.mutedGrey, borderRadius: BorderRadius.circular(2)),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: 0.8, // mockup
-              child: Container(decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.secondaryAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Close', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  ),
+                )
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(progress, style: const TextStyle(color: AppColors.secondaryText, fontSize: 10)),
-        ],
+          )
+        );
+      },
+      child: Container(
+        width: 160,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.mutedGrey),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: Icon(icon, color: statusColor, size: 18),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(status, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
+                )
+              ],
+            ),
+            const Spacer(),
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Text(amount, style: TextStyle(color: statusColor, fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            Container(
+              height: 4,
+              width: double.infinity,
+              decoration: BoxDecoration(color: AppColors.mutedGrey, borderRadius: BorderRadius.circular(2)),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: 0.8, // mockup
+                child: Container(decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2))),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(progress, style: const TextStyle(color: AppColors.secondaryText, fontSize: 10)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildActivityTile(String title, String subtitle, String amount, String date, IconData icon, Color iconColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.mutedGrey)),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+  Widget _buildActivityTile(BuildContext context, String title, String subtitle, String amount, String date, IconData icon, Color iconColor) {
+    return InkWell(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: AppColors.surface,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          builder: (context) => Container(
+            padding: const EdgeInsets.all(24),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                const Text('Transaction Details', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Status', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                    Text(title, style: TextStyle(color: iconColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Program', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                    Text(subtitle, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Amount', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                    Text(amount, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Date', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                    Text(date, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.secondaryAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Close', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  ),
+                )
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(amount, style: TextStyle(color: amount.startsWith('+') ? AppColors.secondaryAccent : Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(date, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-            ],
-          ),
-          const SizedBox(width: 12),
-          const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 12),
-        ],
+          )
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.mutedGrey)),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(amount, style: TextStyle(color: amount.startsWith('+') ? AppColors.secondaryAccent : Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(date, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 12),
+          ],
+        ),
       ),
     );
   }

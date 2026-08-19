@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'check_eligibility_screen.dart';
 
-class ProgramsScreen extends StatelessWidget {
+class ProgramsScreen extends StatefulWidget {
   const ProgramsScreen({super.key});
+
+  @override
+  State<ProgramsScreen> createState() => _ProgramsScreenState();
+}
+
+class _ProgramsScreenState extends State<ProgramsScreen> {
+  String _selectedFilter = 'All';
 
   @override
   Widget build(BuildContext context) {
@@ -43,11 +50,11 @@ class ProgramsScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   children: [
-                    _buildFilterChip('All', true),
-                    _buildFilterChip('Cashback', false),
-                    _buildFilterChip('Grants', false),
-                    _buildFilterChip('Scholarships', false),
-                    _buildFilterChip('Refunds', false),
+                    _buildFilterChip('All'),
+                    _buildFilterChip('Cashback'),
+                    _buildFilterChip('Grants'),
+                    _buildFilterChip('Scholarships'),
+                    _buildFilterChip('Refunds'),
                   ],
                 ),
               ),
@@ -108,9 +115,9 @@ class ProgramsScreen extends StatelessWidget {
                 child: Text('More Programs', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
-              _buildSmallProgramCard('Student Grants', 'Income < \$50k', 'Up to \$1k'),
-              _buildSmallProgramCard('Purchase Refunds', 'Verified purchase', 'Full Refund'),
-              _buildSmallProgramCard('DAO Contributor', 'Reputation > 85', '500 Tokens'),
+              _buildSmallProgramCard(context, 'Student Grants', 'Income < \$50k', 'Up to \$1k'),
+              _buildSmallProgramCard(context, 'Purchase Refunds', 'Verified purchase', 'Full Refund'),
+              _buildSmallProgramCard(context, 'DAO Contributor', 'Reputation > 85', '500 Tokens'),
               const SizedBox(height: 32),
             ],
           ),
@@ -119,43 +126,99 @@ class ProgramsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFilterChip(String label, bool isSelected) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.white : AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isSelected ? Colors.white : AppColors.mutedGrey),
+  Widget _buildFilterChip(String label) {
+    bool isSelected = _selectedFilter == label;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = label;
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? Colors.white : AppColors.mutedGrey),
+        ),
+        child: Text(label, style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
       ),
-      child: Text(label, style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
     );
   }
 
-  Widget _buildSmallProgramCard(String title, String subtitle, String reward) {
+  Widget _buildSmallProgramCard(BuildContext context, String title, String subtitle, String reward) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.mutedGrey),
-        ),
-        child: Row(
-          children: [
-            Expanded(
+      child: InkWell(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: AppColors.surface,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+            builder: (context) => Container(
+              padding: const EdgeInsets.all(24),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: AppColors.primaryAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star, color: AppColors.primaryAccent),
+                        const SizedBox(width: 12),
+                        Text('Reward: $reward', style: const TextStyle(color: AppColors.primaryAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CheckEligibilityScreen()));
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryAccent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Check Eligibility →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  )
                 ],
               ),
-            ),
-            Text(reward, style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold, fontSize: 14)),
-          ],
+            )
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.mutedGrey),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                  ],
+                ),
+              ),
+              Text(reward, style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+            ],
+          ),
         ),
       ),
     );

@@ -4,6 +4,123 @@ import '../theme.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  void _showDummySnackbar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              )
+            ]
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, color: AppColors.primaryAccent, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _showDisconnectDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.mutedGrey),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              )
+            ]
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 32),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Disconnect Wallet?',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Are you sure you want to disconnect your wallet? You will need to reconnect to generate proofs.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.5),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: AppColors.mutedGrey),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showDummySnackbar(context, 'Wallet disconnected (Mock).');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Disconnect', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -65,7 +182,7 @@ class ProfileScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () => _showDummySnackbar(context, 'Receive features coming in Phase X'),
                           style: ElevatedButton.styleFrom(backgroundColor: AppColors.mutedGrey, foregroundColor: Colors.white),
                           child: const Text('Receive'),
                         ),
@@ -73,7 +190,7 @@ class ProfileScreen extends StatelessWidget {
                       const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () => _showDummySnackbar(context, 'Send features coming in Phase X'),
                           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.white),
                           child: const Text('Send'),
                         ),
@@ -86,25 +203,39 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 40),
             
             _buildSectionHeader('Wallet'),
-            _buildListTile(Icons.account_balance_wallet_outlined, 'Balance'),
-            _buildListTile(Icons.history, 'Transaction history'),
+            _buildListTile(context, Icons.account_balance_wallet_outlined, 'Balance', () => _showDummySnackbar(context, 'Balance details coming soon')),
+            _buildListTile(context, Icons.history, 'Transaction history', () => _showDummySnackbar(context, 'Transaction history coming soon')),
             
             const SizedBox(height: 24),
             _buildSectionHeader('My Activity'),
-            _buildListTile(Icons.verified_outlined, 'Claims'),
-            _buildListTile(Icons.file_copy_outlined, 'Proofs'),
-            _buildListTile(Icons.card_giftcard, 'Rewards received'),
+            _buildListTile(context, Icons.verified_outlined, 'Claims', () => _showDummySnackbar(context, 'Claims coming soon')),
+            _buildListTile(context, Icons.file_copy_outlined, 'Proofs', () => _showDummySnackbar(context, 'Proofs coming soon')),
+            _buildListTile(context, Icons.card_giftcard, 'Rewards received', () => _showDummySnackbar(context, 'Rewards coming soon')),
             
             const SizedBox(height: 24),
             _buildSectionHeader('Private Data'),
-            _buildListTile(Icons.sync_alt, 'Connected accounts'),
-            _buildListTile(Icons.sd_storage_outlined, 'Local storage'),
+            _buildListTile(context, Icons.sync_alt, 'Connected accounts', () => _showDummySnackbar(context, 'Account connections coming soon')),
+            _buildListTile(context, Icons.sd_storage_outlined, 'Local storage', () => _showDummySnackbar(context, 'Local storage coming in Phase 2')),
             
             const SizedBox(height: 24),
             _buildSectionHeader('Settings'),
-            _buildListTile(Icons.security, 'Security & Privacy'),
-            _buildListTile(Icons.palette_outlined, 'Appearance'),
-            _buildListTile(Icons.help_outline, 'Help & Support'),
+            _buildListTile(context, Icons.security, 'Security & Privacy', () => _showDummySnackbar(context, 'Security settings coming soon')),
+            _buildListTile(context, Icons.palette_outlined, 'Appearance', () => _showDummySnackbar(context, 'Appearance settings coming soon')),
+            _buildListTile(context, Icons.help_outline, 'Help & Support', () => _showDummySnackbar(context, 'Help desk coming soon')),
+            const SizedBox(height: 32),
+            
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => _showDisconnectDialog(context),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.redAccent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('Disconnect Wallet', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              ),
+            ),
             const SizedBox(height: 40),
           ],
         ),
@@ -119,7 +250,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildListTile(IconData icon, String title) {
+  Widget _buildListTile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
       leading: Container(
@@ -129,7 +260,7 @@ class ProfileScreen extends StatelessWidget {
       ),
       title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
       trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 12),
-      onTap: () {},
+      onTap: onTap,
     );
   }
 }

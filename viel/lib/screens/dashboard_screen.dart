@@ -2,11 +2,36 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme.dart';
+import '../services/database_service.dart';
 import 'check_eligibility_screen.dart';
 import 'generate_proof_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  String _totalBalance = '0.00';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetrics();
+  }
+
+  Future<void> _loadMetrics() async {
+    final balance = await DatabaseService().getMetric('total_balance');
+    if (mounted) {
+      setState(() {
+        _totalBalance = balance ?? '0.00';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +118,9 @@ class DashboardScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('\$10,124.09', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 40)),
+                      _isLoading 
+                          ? const CircularProgressIndicator(color: AppColors.primaryAccent)
+                          : Text('\$$_totalBalance', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 40)),
                       const SizedBox(height: 8),
                       Row(
                         children: [

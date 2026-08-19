@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import 'data_sources_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -214,7 +215,15 @@ class ProfileScreen extends StatelessWidget {
             
             const SizedBox(height: 24),
             _buildSectionHeader('Private Data'),
-            _buildListTile(context, Icons.sync_alt, 'Connected accounts', () => _showDummySnackbar(context, 'Account connections coming soon')),
+            _buildListTile(
+              context, 
+              Icons.sync_alt, 
+              'Data Sources', 
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DataSourcesScreen()),
+              ),
+            ),
             _buildListTile(context, Icons.sd_storage_outlined, 'Local storage', () => _showDummySnackbar(context, 'Local storage coming in Phase 2')),
             
             const SizedBox(height: 24),

@@ -1,0 +1,7 @@
+[package]
+name = "veil_universal_circuit"
+type = "bin"
+authors = ["Veil Team"]
+compiler_version = "0.32.0"
+
+[dependencies]

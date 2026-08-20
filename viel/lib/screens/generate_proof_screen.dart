@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../services/proof_service.dart';
 
 class GenerateProofScreen extends StatefulWidget {
   const GenerateProofScreen({super.key});
@@ -23,28 +24,45 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
     setState(() {
-      _statusText = 'Running ONNX Model...';
+      _statusText = 'Verifying signature & generating Noir Proof...';
     });
 
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    setState(() {
-      _statusText = 'Generating EZKL ZK Proof...';
-    });
+    try {
+      // Fetch mock signature and hash from zkTLS flow
+      final signatureData = await ProofService.fetchLocalSignatureData();
 
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() {
-      _statusText = 'Verifying on-chain...';
-    });
+      // Call the bridge service to generate the proof on-device
+      final proofResult = await ProofService.generateProof(
+        userBalance: 10000,
+        userPrs: 3,
+        minBalance: 5000,
+        minPrs: 1,
+        signatureHex: signatureData['signature']!,
+        payloadHashHex: signatureData['payloadHash']!,
+      );
 
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
+      if (!mounted) return;
+      
+      if (proofResult['success'] == true) {
+        setState(() {
+          _statusText = 'Proof generated! Submitting to Blockchain...';
+        });
 
-    setState(() {
-      _isGenerating = false;
-      _isSubmitted = true;
-    });
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (!mounted) return;
+
+        setState(() {
+          _isGenerating = false;
+          _isSubmitted = true;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isGenerating = false;
+        _statusText = 'Error generating proof: $e';
+      });
+    }
   }
 
   @override

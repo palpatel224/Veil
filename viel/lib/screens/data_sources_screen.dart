@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../services/database_service.dart';
+import '../widgets/reclaim_zktls_dialog.dart';
 
 class DataSourcesScreen extends StatefulWidget {
   const DataSourcesScreen({super.key});
@@ -15,32 +16,39 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
   bool _isLoadingBank = false;
   bool _isLoadingGovt = false;
 
-  Future<void> _mockConnectGitHub() async {
-    setState(() => _isLoadingGitHub = true);
-    // Simulate zkTLS fetch delay
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Save to local secure enclave
-    await _db.updateMetric('github_prs', '3', 'github_zktls');
-    
-    setState(() => _isLoadingGitHub = false);
-    if (mounted) {
-      _showSuccessSnackbar('GitHub Connected! Found 3 merged PRs via zkTLS.');
-    }
+  void _startReclaimFlow(String provider, String url, IconData icon, Color color) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ReclaimZkTlsDialog(
+        providerName: provider,
+        targetUrl: url,
+        icon: icon,
+        color: color,
+        onSuccess: (extractedData, sigData) async {
+          // Store extracted features in SQLite
+          for (var entry in extractedData.entries) {
+            await _db.updateMetric(entry.key, entry.value.toString(), '${provider.toLowerCase()}_zktls');
+          }
+          
+          // Store the cryptographic signature for ZK Proof generation
+          await _db.updateMetric('${provider.toLowerCase()}_signature', sigData['signature']!, 'zktls_signature');
+          await _db.updateMetric('${provider.toLowerCase()}_hash', sigData['payloadHash']!, 'zktls_hash');
+
+          if (mounted) {
+            _showSuccessSnackbar('$provider Connected! Data and ECDSA signature synced securely.');
+          }
+        },
+      ),
+    );
   }
 
-  Future<void> _mockConnectBank() async {
-    setState(() => _isLoadingBank = true);
-    // Simulate zkTLS fetch delay
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Save to local secure enclave
-    await _db.updateMetric('total_balance', '10124.09', 'bank_zktls');
-    
-    setState(() => _isLoadingBank = false);
-    if (mounted) {
-      _showSuccessSnackbar('Bank Connected! Balance synced securely.');
-    }
+  void _mockConnectGitHub() {
+    _startReclaimFlow('GitHub', 'https://api.github.com/user', Icons.code, const Color(0xFF6E5494));
+  }
+
+  void _mockConnectBank() {
+    _startReclaimFlow('Bank API', 'https://api.chase.com/balances', Icons.account_balance, Colors.blueAccent);
   }
 
   Future<void> _mockUploadAadhaar() async {

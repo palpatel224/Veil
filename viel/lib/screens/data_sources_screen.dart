@@ -44,18 +44,8 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
     );
   }
 
-  Future<void> _mockConnectGitHub() async {
-    setState(() => _isLoadingGitHub = true);
-    
-    await ReclaimIntegrationService.connectGitHub(
-      context, 
-      _db, 
-      () {
-        if (mounted) {
-          setState(() => _isLoadingGitHub = false);
-        }
-      }
-    );
+  void _mockConnectGitHub() {
+    _startReclaimFlow('GitHub', 'https://api.github.com/user', Icons.code, const Color(0xFF6E5494));
   }
 
   void _mockConnectBank() {

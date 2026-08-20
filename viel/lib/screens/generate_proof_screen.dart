@@ -28,17 +28,11 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
     });
 
     try {
-      // Fetch mock signature and hash from zkTLS flow
-      final signatureData = await ProofService.fetchLocalSignatureData();
-
       // Call the bridge service to generate the proof on-device
+      // It will automatically read the user's actual balance and PRs from SQLite
       final proofResult = await ProofService.generateProof(
-        userBalance: 10000,
-        userPrs: 3,
         minBalance: 5000,
         minPrs: 1,
-        signatureHex: signatureData['signature']!,
-        payloadHashHex: signatureData['payloadHash']!,
       );
 
       if (!mounted) return;

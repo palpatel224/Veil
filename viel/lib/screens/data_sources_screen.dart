@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../services/database_service.dart';
+import '../services/reclaim_integration_service.dart';
 import '../widgets/reclaim_zktls_dialog.dart';
 
 class DataSourcesScreen extends StatefulWidget {
@@ -43,8 +44,18 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
     );
   }
 
-  void _mockConnectGitHub() {
-    _startReclaimFlow('GitHub', 'https://api.github.com/user', Icons.code, const Color(0xFF6E5494));
+  Future<void> _mockConnectGitHub() async {
+    setState(() => _isLoadingGitHub = true);
+    
+    await ReclaimIntegrationService.connectGitHub(
+      context, 
+      _db, 
+      () {
+        if (mounted) {
+          setState(() => _isLoadingGitHub = false);
+        }
+      }
+    );
   }
 
   void _mockConnectBank() {

@@ -340,9 +340,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              _buildActivityTile(context, 'Proof Verified', 'Shopify Cashback', '+\$25.40', 'May 18, 2025', Icons.check_circle_outline, AppColors.secondaryAccent),
-              _buildActivityTile(context, 'Proof Submitted', 'Uni Scholarship', '-\$1.20', 'May 18, 2025', Icons.send_outlined, AppColors.primaryAccent),
-              _buildActivityTile(context, 'Payment Received', 'Uber Rewards', '+\$15.00', 'May 15, 2025', Icons.download_outlined, Colors.white),
+              _buildActivityTile(context, 'Proof Verified', 'ARC Testnet Grant', '+1.00 ARC', 'Aug 21, 2026', Icons.check_circle_outline, AppColors.secondaryAccent),
+              _buildActivityTile(context, 'Proof Submitted', 'USDC Tester Grant', '+20.00 USDC', 'Aug 21, 2026', Icons.check_circle_outline, AppColors.secondaryAccent),
+              _buildActivityTile(context, 'Proof Verified', 'Shopify Cashback', '+\$25.40', 'Aug 18, 2026', Icons.check_circle_outline, AppColors.secondaryAccent),
+              _buildActivityTile(context, 'Payment Received', 'Uber Rewards', '+\$15.00', 'Aug 15, 2026', Icons.download_outlined, Colors.white),
               const SizedBox(height: 32),
 
               // Privacy Reassurance

@@ -3,6 +3,7 @@ import 'theme.dart';
 import 'screens/main_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const VielApp());
 }
 

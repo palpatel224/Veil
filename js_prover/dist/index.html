@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Veil Prover</title>
+</head>
+<body>
+  <script src="prover.bundle.js"></script>
+  <script>
+    // Poll until the Flutter InAppWebView bridge is ready before sending results
+    function waitForFlutterBridge(callback, maxWaitMs = 10000) {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        if (window.flutter_inappwebview) {
+          clearInterval(interval);
+          callback();
+        } else if (Date.now() - start > maxWaitMs) {
+          clearInterval(interval);
+          console.log('Flutter bridge timed out — bridge not available.');
+        }
+      }, 50);
+    }
+
+    function sendToFlutter(handler, data) {
+      if (window.flutter_inappwebview) {
+        window.flutter_inappwebview.callHandler(handler, data);
+      } else {
+        console.log("Flutter bridge not ready. Handler: " + handler + " Data: " + JSON.stringify(data));
+      }
+    }
+
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.log('JS Error: ' + msg);
+      sendToFlutter('ProofResult', JSON.stringify({ success: false, error: msg }));
+      return false;
+    };
+
+    async function runProver(minBalance, minPrs, userBalance, userPrs) {
+      try {
+        console.log("Starting JS Proof Generation...");
+        sendToFlutter('ProofStatus', 'Initializing WASM Backend...');
+        
+        // Ensure initialization
+        await VeilProver.init();
+
+        sendToFlutter('ProofStatus', 'Generating SNARK Proof (this may take a minute)...');
+        console.log("Generating proof with inputs:", minBalance, minPrs, userBalance, userPrs);
+        
+        const result = await VeilProver.generateProof({
+          min_balance: minBalance,
+          min_prs: minPrs,
+          user_balance: userBalance,
+          user_prs: userPrs
+        });
+        
+        console.log("Proof generated successfully!");
+        console.log("Result type:", typeof result);
+        console.log("Result:", JSON.stringify(result));
+
+        // Wait for bridge to be ready before sending result
+        waitForFlutterBridge(() => {
+          sendToFlutter('ProofResult', JSON.stringify(result));
+        });
+      } catch (e) {
+        console.log('Caught Error: ' + e.toString());
+        waitForFlutterBridge(() => {
+          sendToFlutter('ProofResult', JSON.stringify({ success: false, error: e.toString() }));
+        });
+      }
+    }
+  </script>
+</body>
+</html>

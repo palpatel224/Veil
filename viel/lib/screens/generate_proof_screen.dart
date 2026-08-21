@@ -1,10 +1,16 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme.dart';
 import '../services/proof_service.dart';
+import '../services/blockchain_service.dart';
+import '../services/database_service.dart';
+import '../services/user_secret_service.dart';
+import '../models/program.dart';
 
 class GenerateProofScreen extends StatefulWidget {
-  const GenerateProofScreen({super.key});
+  final Program? program;
+  const GenerateProofScreen({super.key, this.program});
 
   @override
   State<GenerateProofScreen> createState() => _GenerateProofScreenState();
@@ -14,50 +20,199 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
   bool _isGenerating = false;
   bool _isSubmitted = false;
   String _statusText = '';
+  String? _txHash;
+  String? _explorerUrl;
+  String? _errorText;
+
+  // ── Private key that pays gas (deployer key for demo).
+  // In production: replace with WalletConnect session signing.
+  static const String _demoPrivateKey =
+      '0xc0fd611ae0d8e3cd1a4f0da76ce8c8b36689f9791f883f1aea57757fbd4017c8';
+
+  // Unique per-device secret for nullifier derivation — loaded from secure storage.
+  // Generated once on first launch, persisted via flutter_secure_storage.
+  String _userSecret = '';
+
+  // Loaded from DB — set by the user once, persisted across sessions.
+  String? _recipientAddress;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    // Load both in parallel
+    final results = await Future.wait([
+      UserSecretService.getOrCreateSecret(),
+      DatabaseService().getMetric('recipient_wallet'),
+    ]);
+    if (mounted) {
+      setState(() {
+        _userSecret = results[0] as String;
+        final wallet = results[1] as String?;
+        if (wallet != null && wallet.isNotEmpty) {
+          _recipientAddress = wallet;
+        }
+      });
+    }
+  }
+
+  /// Shows a dialog asking the user for their Ethereum address.
+  /// Saves it to DB so it's only asked once.
+  Future<String?> _promptForWalletAddress() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Enter Your Wallet Address',
+            style: TextStyle(color: Colors.white, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter the Ethereum Sepolia address that should receive the reward.',
+              style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace'),
+              decoration: InputDecoration(
+                hintText: '0x...',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                filled: true,
+                fillColor: AppColors.background,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.mutedGrey),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryAccent),
+            onPressed: () async {
+              final addr = controller.text.trim();
+              if (addr.startsWith('0x') && addr.length == 42) {
+                // Save to DB for future sessions
+                await DatabaseService().updateMetric('recipient_wallet', addr, 'user');
+                if (ctx.mounted) Navigator.pop(ctx, addr);
+              } else {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Invalid address — must start with 0x and be 42 chars')),
+                );
+              }
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _generateProof() async {
+    // ── Guard: ensure user secret is loaded (async init) ────────────────────
+    if (_userSecret.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Initializing secure storage, please try again.')),
+      );
+      return;
+    }
+
+    // ── Ensure we have a recipient address before starting ───────────────────
+    String? recipient = _recipientAddress;
+    if (recipient == null || recipient.isEmpty) {
+      recipient = await _promptForWalletAddress();
+      if (recipient == null) return; // user cancelled
+      setState(() => _recipientAddress = recipient);
+    }
+
+    // Start loading state AFTER we have the address
     setState(() {
       _isGenerating = true;
+      _errorText = null;
       _statusText = 'Extracting local features...';
     });
 
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
-    setState(() {
-      _statusText = 'Verifying signature & generating Noir Proof...';
-    });
+    setState(() => _statusText = 'Verifying signature & generating Noir Proof...');
 
     try {
-      // Call the bridge service to generate the proof on-device
-      // It will automatically read the user's actual balance and PRs from SQLite
+      if (widget.program == null) throw Exception('No program selected');
+
+      // ── Step 1: Generate the ZK proof on-device ──────────────────────────
       final proofResult = await ProofService.generateProof(
-        minBalance: 5000,
-        minPrs: 1,
+        minBalance: widget.program!.requiredMinBalance,
+        minPrs: widget.program!.requiredMinPrs,
+        onStatus: (status) {
+          if (mounted) setState(() => _statusText = status);
+        },
       );
 
       if (!mounted) return;
-      
-      if (proofResult['success'] == true) {
+
+      if (proofResult['success'] != true) {
         setState(() {
-          _statusText = 'Proof generated! Submitting to Blockchain...';
+          _isGenerating = false;
+          _errorText = proofResult['error'] ?? 'Proof generation failed';
         });
+        return;
+      }
 
-        await Future.delayed(const Duration(milliseconds: 1500));
-        if (!mounted) return;
+      // ── Step 2: Submit proof to blockchain ───────────────────────────────
+      setState(() => _statusText = 'Proof generated! Submitting to Ethereum Sepolia...');
 
+      final claimResult = await BlockchainService.submitProof(
+        programId: widget.program!.id + 1, // on-chain IDs are 1-indexed
+        proofHex: proofResult['proof'] as String,
+        publicInputs: List<String>.from(proofResult['publicInputs'] as List),
+        userSecret: _userSecret,
+        recipientAddress: recipient,
+        privateKeyHex: _demoPrivateKey,
+        onStatus: (status) {
+          if (mounted) setState(() => _statusText = status);
+        },
+      );
+
+      if (!mounted) return;
+
+      if (claimResult.success) {
         setState(() {
           _isGenerating = false;
           _isSubmitted = true;
+          _txHash = claimResult.txHash;
+          _explorerUrl = claimResult.explorerUrl;
+        });
+      } else {
+        setState(() {
+          _isGenerating = false;
+          _errorText = claimResult.error;
+          _txHash = claimResult.txHash;
+          _explorerUrl = claimResult.explorerUrl;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isGenerating = false;
-        _statusText = 'Error generating proof: $e';
+        _errorText = 'Unexpected error: $e';
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +231,69 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
   }
 
   Widget _buildContent() {
+    // ── Error State ────────────────────────────────────────────────────────────
+    if (_errorText != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.redAccent, size: 72),
+            const SizedBox(height: 24),
+            const Text('Submission Failed',
+                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                _errorText!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            if (_txHash != null) ...[
+              _buildTransactionCard(),
+              const SizedBox(height: 16),
+              // View on Etherscan
+              OutlinedButton.icon(
+                onPressed: _explorerUrl != null
+                    ? () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(_explorerUrl!)),
+                        );
+                      }
+                    : null,
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('View on Etherscan'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.secondaryAccent,
+                  side: const BorderSide(color: AppColors.secondaryAccent),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            ElevatedButton(
+              onPressed: () => setState(() {
+                _errorText = null;
+                _txHash = null;
+                _explorerUrl = null;
+              }),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.surface),
+              child: const Text('Try Again', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Success State ──────────────────────────────────────────────────────────
     if (_isSubmitted) {
       return Center(
         child: Column(
@@ -83,14 +301,41 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
           children: [
             const Icon(Icons.check_circle, color: AppColors.secondaryAccent, size: 80),
             const SizedBox(height: 24),
-            const Text('Proof Verified!', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
+            const Text('Proof Verified On-Chain!',
+                style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             const Text(
-              'Your claim has been verified on-chain.\nThe shielded payment is on its way.',
+              'Your ZK proof was accepted and\n0.01 sETH reward has been sent.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.secondaryText, fontSize: 16),
+              style: TextStyle(color: AppColors.secondaryText, fontSize: 15),
             ),
-            const SizedBox(height: 48),
+            const SizedBox(height: 32),
+
+            // Transaction hash card
+            if (_txHash != null) ...[
+              _buildTransactionCard(),
+              const SizedBox(height: 16),
+
+              // View on Etherscan
+              OutlinedButton.icon(
+                onPressed: _explorerUrl != null
+                    ? () {
+                        // url_launcher would open this — for now show the URL
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(_explorerUrl!)),
+                        );
+                      }
+                    : null,
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('View on Etherscan'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.secondaryAccent,
+                  side: BorderSide(color: AppColors.secondaryAccent.withValues(alpha: 0.5)),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -98,10 +343,9 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
                   backgroundColor: AppColors.secondaryAccent,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                onPressed: () {
-                  Navigator.popUntil(context, (route) => route.isFirst);
-                },
-                child: const Text('Back to Dashboard', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                child: const Text('Back to Dashboard',
+                    style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -139,11 +383,18 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
         ),
         const SizedBox(height: 32),
         
-        _buildProofOption('Income Verification', 'Prove income > \$50k', Icons.attach_money),
-        const SizedBox(height: 16),
-        _buildProofOption('Academic Standing', 'Prove GPA > 3.0', Icons.school),
-        const SizedBox(height: 16),
-        _buildProofOption('Employment Status', 'Prove active employment', Icons.work),
+        if (widget.program == null)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+            ),
+            child: const Text('No program selected. Please go back to Check Eligibility.', style: TextStyle(color: Colors.white)),
+          )
+        else
+          _buildProofOption(widget.program!.name, widget.program!.description, Icons.verified),
         
         const Spacer(),
         
@@ -209,6 +460,47 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
             ),
           ),
           const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 14),
+        ],
+      ),
+    );
+  }
+  Widget _buildTransactionCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _isSubmitted ? AppColors.secondaryAccent.withValues(alpha: 0.4) : Colors.redAccent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Transaction Hash',
+              style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _txHash!,
+                  style: const TextStyle(
+                      color: AppColors.primaryAccent,
+                      fontSize: 12,
+                      fontFamily: 'monospace'),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy, color: AppColors.secondaryText, size: 18),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _txHash!));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Tx hash copied!')),
+                  );
+                },
+              ),
+            ],
+          ),
         ],
       ),
     );

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../services/database_service.dart';
+import '../models/program.dart';
 import 'generate_proof_screen.dart';
 
 class CheckEligibilityScreen extends StatefulWidget {
-  const CheckEligibilityScreen({super.key});
+  final Program? initialProgram;
+  const CheckEligibilityScreen({super.key, this.initialProgram});
 
   @override
   State<CheckEligibilityScreen> createState() => _CheckEligibilityScreenState();
@@ -12,21 +15,53 @@ class CheckEligibilityScreen extends StatefulWidget {
 class _CheckEligibilityScreenState extends State<CheckEligibilityScreen> {
   bool _isScanning = false;
   bool _hasScanned = false;
+  double _userBalance = 0.0;
+  int _userPrs = 0;
+  Program? _selectedProgram;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialProgram != null) {
+      _selectedProgram = widget.initialProgram;
+      _runScan();
+    }
+  }
 
   void _runScan() async {
     setState(() {
       _isScanning = true;
     });
     
-    // Simulate local private pilot scanning
-    await Future.delayed(const Duration(seconds: 2));
+    // Simulate local private pilot scanning, fetch actual data from SQLite
+    final db = DatabaseService();
+    final balanceStr = await db.getMetric('total_balance') ?? '0';
+    final prsStr = await db.getMetric('github_prs') ?? '0';
+
+    _userBalance = double.tryParse(balanceStr) ?? 0.0;
+    _userPrs = int.tryParse(prsStr) ?? 0;
+
+    await Future.delayed(const Duration(seconds: 1));
     
     if (mounted) {
       setState(() {
         _isScanning = false;
         _hasScanned = true;
+        if (_selectedProgram != null && !_isEligible(_selectedProgram!)) {
+          _selectedProgram = null;
+        }
+        if (_selectedProgram == null) {
+          try {
+            _selectedProgram = availablePrograms.firstWhere((p) => _isEligible(p));
+          } catch (_) {}
+        }
       });
     }
+  }
+
+  bool _isEligible(Program program) {
+    if (!_hasScanned) return false;
+    return _userBalance >= program.requiredMinBalance && _userPrs >= program.requiredMinPrs;
   }
 
   @override
@@ -53,14 +88,15 @@ class _CheckEligibilityScreenState extends State<CheckEligibilityScreen> {
               const SizedBox(height: 32),
               
               Expanded(
-                child: ListView(
-                  children: [
-                    _buildEligibilityCard('Shopify Cashback', 'Requires spending > \$100/mo', _hasScanned ? true : false),
-                    const SizedBox(height: 16),
-                    _buildEligibilityCard('Student Support Grant', 'Requires active enrollment', false),
-                    const SizedBox(height: 16),
-                    _buildEligibilityCard('Freelancer Relief', 'Requires income < \$50k', _hasScanned ? true : false),
-                  ],
+                child: ListView.separated(
+                  itemCount: availablePrograms.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final program = availablePrograms[index];
+                    final eligible = _isEligible(program);
+                    final isSelected = _selectedProgram == program;
+                    return _buildEligibilityCard(program, eligible, isSelected);
+                  },
                 ),
               ),
               
@@ -69,13 +105,22 @@ class _CheckEligibilityScreenState extends State<CheckEligibilityScreen> {
                 child: ElevatedButton(
                   onPressed: _isScanning 
                       ? null 
-                      : (_hasScanned 
-                          ? () {
-                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const GenerateProofScreen()));
-                            } 
-                          : _runScan),
+                      : (!_hasScanned 
+                          ? _runScan
+                          : (_selectedProgram != null 
+                              ? () {
+                                  Navigator.pushReplacement(
+                                    context, 
+                                    MaterialPageRoute(
+                                      builder: (context) => GenerateProofScreen(program: _selectedProgram!),
+                                    ),
+                                  );
+                                } 
+                              : null)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _hasScanned ? AppColors.secondaryAccent : AppColors.primaryAccent,
+                    backgroundColor: _hasScanned && _selectedProgram != null 
+                        ? AppColors.secondaryAccent 
+                        : AppColors.primaryAccent,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: _isScanning
@@ -85,8 +130,12 @@ class _CheckEligibilityScreenState extends State<CheckEligibilityScreen> {
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                         )
                       : Text(
-                          _hasScanned ? 'Proceed to Proof' : 'Run Private Scan', 
-                          style: TextStyle(color: _hasScanned ? Colors.black : Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+                          !_hasScanned ? 'Run Private Scan' : 'Proceed to Proof', 
+                          style: TextStyle(
+                            color: (_hasScanned && _selectedProgram != null) ? Colors.black : Colors.white, 
+                            fontSize: 16, 
+                            fontWeight: FontWeight.bold
+                          )
                         ),
                 ),
               )
@@ -97,29 +146,56 @@ class _CheckEligibilityScreenState extends State<CheckEligibilityScreen> {
     );
   }
 
-  Widget _buildEligibilityCard(String title, String condition, bool checked) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: checked ? AppColors.secondaryAccent.withValues(alpha: 0.1) : AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: checked ? AppColors.secondaryAccent.withValues(alpha: 0.5) : AppColors.mutedGrey),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text(condition, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-              ],
-            ),
+  Widget _buildEligibilityCard(Program program, bool eligible, bool isSelected) {
+    return GestureDetector(
+      onTap: eligible ? () {
+        setState(() {
+          _selectedProgram = program;
+        });
+      } : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? AppColors.secondaryAccent.withValues(alpha: 0.1) 
+              : AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected 
+                ? AppColors.secondaryAccent 
+                : (eligible ? AppColors.primaryAccent.withValues(alpha: 0.5) : AppColors.mutedGrey),
+            width: isSelected ? 2 : 1,
           ),
-          Icon(checked ? Icons.check_circle : Icons.circle_outlined, color: checked ? AppColors.secondaryAccent : AppColors.secondaryText),
-        ],
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: AppColors.secondaryAccent.withValues(alpha: 0.2),
+              blurRadius: 8,
+              spreadRadius: 1,
+            )
+          ] : [],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(program.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text(program.description, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                ],
+              ),
+            ),
+            if (_hasScanned)
+              Icon(
+                eligible ? Icons.check_circle : Icons.cancel, 
+                color: eligible ? AppColors.secondaryAccent : Colors.redAccent,
+              )
+            else
+              const Icon(Icons.circle_outlined, color: AppColors.secondaryText),
+          ],
+        ),
       ),
     );
   }

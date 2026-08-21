@@ -3,6 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme.dart';
 import '../services/database_service.dart';
+import '../services/wallet_service.dart';
+import '../models/program.dart';
+import 'data_sources_screen.dart';
 import 'check_eligibility_screen.dart';
 import 'generate_proof_screen.dart';
 
@@ -15,6 +18,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _totalBalance = '0.00';
+  String _githubPrs = '0';
   bool _isLoading = true;
 
   @override
@@ -25,9 +29,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadMetrics() async {
     final balance = await DatabaseService().getMetric('total_balance');
+    final prs = await DatabaseService().getMetric('github_prs');
     if (mounted) {
       setState(() {
         _totalBalance = balance ?? '0.00';
+        _githubPrs = prs ?? '0';
         _isLoading = false;
       });
     }
@@ -37,8 +43,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+        child: RefreshIndicator(
+          color: AppColors.primaryAccent,
+          backgroundColor: AppColors.surface,
+          onRefresh: () async {
+            final db = DatabaseService();
+            final address = await db.getMetric('recipient_wallet');
+            if (address != null && address.isNotEmpty) {
+              try {
+                // Fetch live from blockchain
+                final balance = await WalletService.fetchBalance(address);
+                await db.updateMetric('total_balance', balance.toStringAsFixed(4), 'base_sepolia_rpc');
+              } catch (_) {}
+            }
+            await _loadMetrics();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -120,7 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       _isLoading 
                           ? const CircularProgressIndicator(color: AppColors.primaryAccent)
-                          : Text('\$$_totalBalance', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 40)),
+                          : Text('$_totalBalance ETH', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 40)),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -131,21 +153,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryAccent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.visibility_off_outlined, size: 14, color: AppColors.primaryAccent),
-                        SizedBox(width: 6),
-                        Text('Shielded', style: TextStyle(color: AppColors.primaryAccent, fontSize: 12, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  )
+                  if (_totalBalance == '0.00' && !_isLoading)
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const DataSourcesScreen())).then((_) => _loadMetrics());
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryAccent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add_link, size: 16, color: Colors.black),
+                            SizedBox(width: 6),
+                            Text('Connect Wallet', style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.visibility_off_outlined, size: 14, color: AppColors.primaryAccent),
+                          SizedBox(width: 6),
+                          Text('Shielded', style: TextStyle(color: AppColors.primaryAccent, fontSize: 12, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    )
                 ],
               ),
               const SizedBox(height: 32),
@@ -193,17 +236,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                height: 200,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _buildActiveProgramCard(context, 'Shopify Cashback', '\$25.40', '80% completed', 'Eligible', Colors.green, Icons.shopping_bag),
-                    const SizedBox(width: 16),
-                    _buildActiveProgramCard(context, 'Uni Scholarship', '\$1,200', '60% completed', 'In Progress', AppColors.primaryAccent, Icons.school),
-                    const SizedBox(width: 16),
-                    _buildActiveProgramCard(context, 'Uber Rewards', '\$15.00', 'Submitted', 'Pending', Colors.orange, Icons.local_taxi),
-                  ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: availablePrograms.map((program) => Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: _buildActiveProgramCard(context, program),
+                    )).toList(),
+                  ),
                 ),
               ),
               const SizedBox(height: 40),
@@ -254,6 +296,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -290,53 +333,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildActiveProgramCard(BuildContext context, String title, String amount, String progress, String status, Color statusColor, IconData icon) {
+  bool _isEligible(Program program) {
+    double userBalance = double.tryParse(_totalBalance) ?? 0.0;
+    int userPrs = int.tryParse(_githubPrs) ?? 0;
+    return userBalance >= program.requiredMinBalance && userPrs >= program.requiredMinPrs;
+  }
+
+  Widget _buildActiveProgramCard(BuildContext context, Program program) {
+    bool eligible = _isEligible(program);
+    Color statusColor = eligible ? AppColors.primaryAccent : Colors.orangeAccent;
+    
     return GestureDetector(
       onTap: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: AppColors.surface,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-          builder: (context) => Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text('Status: $status', style: TextStyle(color: statusColor, fontSize: 16)),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: AppColors.primaryAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.star, color: AppColors.primaryAccent),
-                      const SizedBox(width: 12),
-                      Text('Progress: $progress', style: const TextStyle(color: AppColors.primaryAccent, fontSize: 16, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.secondaryAccent,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Close', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                  ),
-                )
-              ],
-            ),
-          )
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => CheckEligibilityScreen(initialProgram: program)));
       },
       child: Container(
-        width: 160,
+        width: 180,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -345,6 +357,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -352,7 +365,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), shape: BoxShape.circle),
-                  child: Icon(icon, color: statusColor, size: 18),
+                  child: Icon(Icons.stars, color: statusColor, size: 18),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -361,14 +374,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                   ),
-                  child: Text(status, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(eligible ? Icons.check_circle : Icons.warning_amber_rounded, size: 10, color: statusColor),
+                      const SizedBox(width: 4),
+                      Text(eligible ? 'Eligible' : 'Req Data', style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
+                    ]
+                  ),
                 )
               ],
             ),
-            const Spacer(),
-            Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 16),
+            Text(program.name, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
-            Text(amount, style: TextStyle(color: statusColor, fontSize: 20, fontWeight: FontWeight.w700)),
+            Text(program.description, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12, fontWeight: FontWeight.w400)),
             const SizedBox(height: 12),
             Container(
               height: 4,
@@ -376,12 +396,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: BoxDecoration(color: AppColors.mutedGrey, borderRadius: BorderRadius.circular(2)),
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
-                widthFactor: 0.8, // mockup
-                child: Container(decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2))),
+                widthFactor: eligible ? 1.0 : 0.2,
+                child: Container(
+                  decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2)),
+                ),
               ),
             ),
             const SizedBox(height: 8),
-            Text(progress, style: const TextStyle(color: AppColors.secondaryText, fontSize: 10)),
+            Text('Req: ${program.requiredMinBalance} USDC', style: const TextStyle(color: AppColors.secondaryText, fontSize: 10, fontWeight: FontWeight.w600)),
           ],
         ),
       ),

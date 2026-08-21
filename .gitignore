@@ -7,3 +7,12 @@ viel_implementation_plan.md
 
 # Notes
 notes/
+
+# JS prover node_modules
+js_prover/node_modules/
+js_prover/dist/
+
+# Foundry build artifacts
+contracts/out/
+contracts/cache/
+contracts/broadcast/

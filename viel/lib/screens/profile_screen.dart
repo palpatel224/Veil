@@ -1,9 +1,34 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../services/database_service.dart';
 import 'data_sources_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _totalBalance = '0.00';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetrics();
+  }
+
+  Future<void> _loadMetrics() async {
+    final balance = await DatabaseService().getMetric('total_balance');
+    if (mounted) {
+      setState(() {
+        _totalBalance = balance ?? '0.00';
+        _isLoading = false;
+      });
+    }
+  }
 
   void _showDummySnackbar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -177,7 +202,9 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text('₹10,124.09', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
+                  _isLoading 
+                      ? const CircularProgressIndicator(color: AppColors.primaryAccent)
+                      : Text('$_totalBalance ETH', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 24),
                   Row(
                     children: [

@@ -22,8 +22,9 @@ class DatabaseService {
     
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -50,8 +51,37 @@ class DatabaseService {
       )
     ''');
     
+    // Transactions table
+    await db.execute('''
+      CREATE TABLE transactions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        subtitle TEXT,
+        amount TEXT,
+        date TEXT,
+        tx_hash TEXT,
+        color_index INTEGER
+      )
+    ''');
+    
     // Seed some initial zero-state data
     await _seedInitialData(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE transactions(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT,
+          subtitle TEXT,
+          amount TEXT,
+          date TEXT,
+          tx_hash TEXT,
+          color_index INTEGER
+        )
+      ''');
+    }
   }
 
   Future<void> _seedInitialData(Database db) async {
@@ -112,5 +142,24 @@ class DatabaseService {
       metrics[map['metric_name'] as String] = map['metric_value'] as String;
     }
     return metrics;
+  }
+
+  // --- Transactions ---
+
+  Future<void> addTransaction(String title, String subtitle, String amount, String date, String txHash, int colorIndex) async {
+    final db = await database;
+    await db.insert('transactions', {
+      'title': title,
+      'subtitle': subtitle,
+      'amount': amount,
+      'date': date,
+      'tx_hash': txHash,
+      'color_index': colorIndex, // 0 for primary, 1 for secondary, 2 for white
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getTransactions() async {
+    final db = await database;
+    return await db.query('transactions', orderBy: 'id DESC', limit: 10);
   }
 }

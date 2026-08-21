@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:web3dart/web3dart.dart';
+import 'database_service.dart';
 
 /// Result returned after attempting to submit a proof on-chain.
 class ClaimResult {
@@ -185,6 +186,26 @@ class BlockchainService {
           explorerUrl: '$explorerBase/$txHash',
           error: 'Transaction confirmation timed out. It might still succeed.',
         );
+      }
+
+      final dateStr = '${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}';
+      String amountStr = '+0.001 sETH';
+      String title = 'Proof Verified';
+      String subtitle = programId == 5 ? 'ARC Testnet Grant' : programId == 4 ? 'USDC Tester Grant' : 'Verified Program';
+      if (programId == 4) amountStr = '+1.00 USDC';
+      if (programId == 5) amountStr = '+1.00 ARC';
+
+      try {
+        await DatabaseService().addTransaction(
+          title,
+          subtitle,
+          amountStr,
+          dateStr,
+          txHash,
+          0,
+        );
+      } catch (e) {
+        // ignore DB error
       }
 
       return ClaimResult(

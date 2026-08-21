@@ -22,6 +22,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _ethBalance = '0.00';
   String _arcBalance = '0.00';
   String _githubPrs = '0';
+  List<Map<String, dynamic>> _transactions = [];
   bool _isLoading = true;
 
   @override
@@ -35,12 +36,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final eth = await DatabaseService().getMetric('eth_balance');
     final arc = await DatabaseService().getMetric('arc_balance');
     final prs = await DatabaseService().getMetric('github_prs');
+    final txs = await DatabaseService().getTransactions();
     if (mounted) {
       setState(() {
         _totalBalance = balance ?? '0.00';
         _ethBalance = eth ?? '0.00';
         _arcBalance = arc ?? '0.00';
         _githubPrs = prs ?? '0';
+        _transactions = txs;
         _isLoading = false;
       });
     }
@@ -340,10 +343,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              _buildActivityTile(context, 'Proof Verified', 'ARC Testnet Grant', '+1.00 ARC', 'Aug 21, 2026', Icons.check_circle_outline, AppColors.secondaryAccent),
-              _buildActivityTile(context, 'Proof Submitted', 'USDC Tester Grant', '+20.00 USDC', 'Aug 21, 2026', Icons.check_circle_outline, AppColors.secondaryAccent),
-              _buildActivityTile(context, 'Proof Verified', 'Shopify Cashback', '+\$25.40', 'Aug 18, 2026', Icons.check_circle_outline, AppColors.secondaryAccent),
-              _buildActivityTile(context, 'Payment Received', 'Uber Rewards', '+\$15.00', 'Aug 15, 2026', Icons.download_outlined, Colors.white),
+              if (_transactions.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: Text('No recent activity', style: TextStyle(color: AppColors.secondaryText))),
+                )
+              else
+                ..._transactions.map((tx) {
+                  return _buildActivityTile(
+                    context,
+                    tx['title'] as String,
+                    tx['subtitle'] as String,
+                    tx['amount'] as String,
+                    tx['date'] as String,
+                    tx['tx_hash'] as String,
+                    Icons.check_circle_outline,
+                    AppColors.secondaryAccent,
+                  );
+                }),
               const SizedBox(height: 32),
 
               // Privacy Reassurance
@@ -527,7 +544,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildActivityTile(BuildContext context, String title, String subtitle, String amount, String date, IconData icon, Color iconColor) {
+  Widget _buildActivityTile(BuildContext context, String title, String subtitle, String amount, String date, String txHash, IconData icon, Color iconColor) {
     return InkWell(
       onTap: () {
         showModalBottomSheet(
@@ -571,6 +588,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     const Text('Date', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
                     Text(date, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Tx Hash', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                    Text(txHash.length > 10 ? '${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}' : txHash, style: const TextStyle(color: Colors.white, fontSize: 16)),
                   ],
                 ),
                 const SizedBox(height: 32),

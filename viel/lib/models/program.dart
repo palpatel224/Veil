@@ -65,4 +65,22 @@ const List<Program> availablePrograms = [
     requiredMinPrs: 3,
     reward: "1 ARC",
   ),
+  Program(
+    id: 5,
+    name: "ETH Hacker Grant",
+    sponsor: "Ethereum Foundation",
+    description: "Sepolia ETH payout for early beta testers. Prove you have merged >= 5 PRs.",
+    requiredMinBalance: 0.0,
+    requiredMinPrs: 5,
+    reward: "0.001 ETH",
+  ),
+  Program(
+    id: 6,
+    name: "USDC Power User",
+    sponsor: "Circle",
+    description: "Testnet USDC payout for active contributors. Prove you have merged >= 10 PRs.",
+    requiredMinBalance: 0.0,
+    requiredMinPrs: 10,
+    reward: "2 USDC",
+  ),
 ];

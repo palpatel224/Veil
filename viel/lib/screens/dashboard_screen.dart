@@ -267,7 +267,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               scrollDirection: Axis.vertical,
                               children: [
                                 _buildInnerBalanceContent('USDC', _totalBalance, 'Ethereum Sepolia'),
-                                _buildInnerBalanceContent('ARC', _arcBalance, 'Arc Testnet'),
+                                _buildInnerBalanceContent('USDC', _arcBalance, 'Arc Testnet'),
                                 _buildInnerBalanceContent('ETH', _ethBalance, 'Ethereum Sepolia'),
                               ],
                             ),

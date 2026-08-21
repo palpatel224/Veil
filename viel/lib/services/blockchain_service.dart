@@ -191,9 +191,16 @@ class BlockchainService {
       final dateStr = '${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}';
       String amountStr = '+0.001 sETH';
       String title = 'Proof Verified';
-      String subtitle = programId == 5 ? 'ARC Testnet Grant' : programId == 4 ? 'USDC Tester Grant' : 'Verified Program';
+      String subtitle = 'Verified Program';
+      if (programId == 4) subtitle = 'USDC Tester Grant';
+      if (programId == 5) subtitle = 'ARC Testnet Grant';
+      if (programId == 6) subtitle = 'ETH Hacker Grant';
+      if (programId == 7) subtitle = 'USDC Power User';
+      
       if (programId == 4) amountStr = '+1.00 USDC';
       if (programId == 5) amountStr = '+1.00 ARC';
+      if (programId == 6) amountStr = '+0.001 ETH';
+      if (programId == 7) amountStr = '+2.00 USDC';
 
       try {
         await DatabaseService().addTransaction(

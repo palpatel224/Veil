@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'check_eligibility_screen.dart';
+import '../models/program.dart';
 
 class ProgramsScreen extends StatefulWidget {
   const ProgramsScreen({super.key});
@@ -115,9 +116,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
                 child: Text('More Programs', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
-              _buildSmallProgramCard(context, 'Student Grants', 'Income < \$50k', 'Up to \$1k'),
-              _buildSmallProgramCard(context, 'Purchase Refunds', 'Verified purchase', 'Full Refund'),
-              _buildSmallProgramCard(context, 'DAO Contributor', 'Reputation > 85', '500 Tokens'),
+              ...availablePrograms.map((program) => _buildSmallProgramCard(context, program)),
               const SizedBox(height: 32),
             ],
           ),
@@ -147,7 +146,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
     );
   }
 
-  Widget _buildSmallProgramCard(BuildContext context, String title, String subtitle, String reward) {
+  Widget _buildSmallProgramCard(BuildContext context, Program program) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: InkWell(
@@ -162,9 +161,11 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                  Text(program.name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('Sponsored by ${program.sponsor}', style: const TextStyle(color: AppColors.primaryAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 16),
+                  Text(program.description, style: const TextStyle(color: AppColors.secondaryText, fontSize: 16)),
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -173,7 +174,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
                       children: [
                         const Icon(Icons.star, color: AppColors.primaryAccent),
                         const SizedBox(width: 12),
-                        Text('Reward: $reward', style: const TextStyle(color: AppColors.primaryAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text('Reward: ${program.reward}', style: const TextStyle(color: AppColors.primaryAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -183,7 +184,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CheckEligibilityScreen()));
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => CheckEligibilityScreen(initialProgram: program)));
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryAccent,
@@ -210,13 +211,14 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(program.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                    Text(program.description, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),
-              Text(reward, style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(width: 16),
+              Text(program.reward, style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold, fontSize: 14)),
             ],
           ),
         ),

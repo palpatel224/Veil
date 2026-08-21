@@ -30,7 +30,8 @@ class WalletService {
       
       return {
         'ETH': sepEth,
-        'USDC': arcUsdc + sepoliaUsdc,
+        'USDC': sepoliaUsdc,
+        'ARC': arcUsdc,
       };
     } catch (e) {
       throw Exception('Failed to fetch wallet balances: $e');

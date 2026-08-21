@@ -56,4 +56,13 @@ const List<Program> availablePrograms = [
     requiredMinPrs: 3,
     reward: "1 USDC",
   ),
+  Program(
+    id: 4,
+    name: "ARC Testnet Grant",
+    sponsor: "Arc Network",
+    description: "Native ARC Testnet payout for open-source devs. Prove you have merged >= 3 PRs.",
+    requiredMinBalance: 0.0,
+    requiredMinPrs: 3,
+    reward: "1 ARC",
+  ),
 ];

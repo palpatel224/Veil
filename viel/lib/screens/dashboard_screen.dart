@@ -20,6 +20,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   String _totalBalance = '0.00';
   String _ethBalance = '0.00';
+  String _arcBalance = '0.00';
   String _githubPrs = '0';
   bool _isLoading = true;
 
@@ -32,11 +33,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadMetrics() async {
     final balance = await DatabaseService().getMetric('total_balance');
     final eth = await DatabaseService().getMetric('eth_balance');
+    final arc = await DatabaseService().getMetric('arc_balance');
     final prs = await DatabaseService().getMetric('github_prs');
     if (mounted) {
       setState(() {
         _totalBalance = balance ?? '0.00';
         _ethBalance = eth ?? '0.00';
+        _arcBalance = arc ?? '0.00';
         _githubPrs = prs ?? '0';
         _isLoading = false;
       });
@@ -58,7 +61,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // Fetch live from multiple networks
                 final balances = await WalletService.fetchBalances(address);
                 await db.updateMetric('eth_balance', balances['ETH']!.toStringAsFixed(4), 'sepolia_rpc');
-                await db.updateMetric('total_balance', balances['USDC']!.toStringAsFixed(4), 'arc_testnet_rpc');
+                await db.updateMetric('total_balance', balances['USDC']!.toStringAsFixed(4), 'sepolia_usdc');
+                await db.updateMetric('arc_balance', balances['ARC']!.toStringAsFixed(4), 'arc_testnet_rpc');
               } catch (_) {}
             }
             await _loadMetrics();
@@ -217,7 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ],
                                 ),
                               ),
-                              if (_totalBalance == '0.00' && _ethBalance == '0.00')
+                              if (_totalBalance == '0.00' && _ethBalance == '0.00' && _arcBalance == '0.00')
                                 GestureDetector(
                                   onTap: () {
                                     Navigator.push(context, MaterialPageRoute(builder: (context) => const DataSourcesScreen())).then((_) => _loadMetrics());
@@ -259,7 +263,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: PageView(
                               scrollDirection: Axis.vertical,
                               children: [
-                                _buildInnerBalanceContent('USDC', _totalBalance, 'Arc Testnet'),
+                                _buildInnerBalanceContent('USDC', _totalBalance, 'Ethereum Sepolia'),
+                                _buildInnerBalanceContent('ARC', _arcBalance, 'Arc Testnet'),
                                 _buildInnerBalanceContent('ETH', _ethBalance, 'Ethereum Sepolia'),
                               ],
                             ),

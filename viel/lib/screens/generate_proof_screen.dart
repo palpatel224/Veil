@@ -305,7 +305,7 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
                 style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(
-              'Your ZK proof was accepted and\n${widget.program?.id == 3 ? '1 USDC' : '0.001 sETH'} reward has been sent.',
+              'Your ZK proof was accepted and\n${widget.program?.id == 4 ? '1 ARC' : widget.program?.id == 3 ? '1 USDC' : '0.001 sETH'} reward has been sent.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.secondaryText, fontSize: 15),
             ),

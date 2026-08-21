@@ -28,14 +28,28 @@ class ClaimResult {
 ///   PayoutController  : 0x54b76c42BF69FA5b62637A4d0E5f9B46A58AE6c0
 class BlockchainService {
   // ── Network Config ──────────────────────────────────────────────────────────
-  static const String _rpcUrl =
-      'https://ethereum-sepolia-rpc.publicnode.com';
-  static const String _explorerBase =
-      'https://sepolia.etherscan.io/tx';
+  static String _getRpcUrl(int programId) {
+    if (programId == 5) return 'https://rpc.testnet.arc.network';
+    return 'https://ethereum-sepolia-rpc.publicnode.com';
+  }
+
+  static String _getExplorerBase(int programId) {
+    if (programId == 5) return 'https://testnet.arcanescan.com/tx'; // Adjust as needed
+    return 'https://sepolia.etherscan.io/tx';
+  }
+
+  static int _getChainId(int programId) {
+    if (programId == 5) return 5042002;
+    return 11155111;
+  }
 
   // ── Deployed Contract Addresses ─────────────────────────────────────────────
-  static final EthereumAddress _payoutControllerAddress =
-      EthereumAddress.fromHex('0xBb06731dfD073843c827794F6049cEA28E39A238');
+  static EthereumAddress _getPayoutControllerAddress(int programId) {
+    if (programId == 5) {
+      return EthereumAddress.fromHex('0xB012655ba9cb837B93B70Adea3BCDfE488e11571'); // ARC Testnet
+    }
+    return EthereumAddress.fromHex('0xBb06731dfD073843c827794F6049cEA28E39A238'); // Sepolia
+  }
 
   // ── PayoutController ABI ─────────────────────────────────────────────────────
   // Minimal ABI: only the functions we call from the app.
@@ -71,7 +85,7 @@ class BlockchainService {
 
   /// Submits the ZK proof to the PayoutController contract.
   ///
-  /// [programId]    Matches the on-chain program ID (1, 2, or 3).
+  /// [programId]    Matches the on-chain program ID (1, 2, 3, or 4).
   /// [proofHex]     512-byte hex proof from ProofService.dart.
   /// [publicInputs] List of 2 hex strings from ProofService._computePublicInputs().
   /// [userSecret]   A locally stored secret seed for nullifier derivation.
@@ -89,9 +103,14 @@ class BlockchainService {
     Function(String)? onStatus,
   }) async {
     try {
-      if (onStatus != null) onStatus('Connecting to Ethereum Sepolia...');
+      final rpcUrl = _getRpcUrl(programId);
+      final chainId = _getChainId(programId);
+      final explorerBase = _getExplorerBase(programId);
+      final payoutControllerAddress = _getPayoutControllerAddress(programId);
 
-      final client = Web3Client(_rpcUrl, http.Client());
+      if (onStatus != null) onStatus('Connecting to Network...');
+
+      final client = Web3Client(rpcUrl, http.Client());
       final credentials = EthPrivateKey.fromHex(privateKeyHex);
 
       // 1. Decode proof from hex string → raw bytes
@@ -112,7 +131,7 @@ class BlockchainService {
       // 4. Load the contract
       final contract = DeployedContract(
         ContractAbi.fromJson(_payoutControllerAbi, 'PayoutController'),
-        _payoutControllerAddress,
+        payoutControllerAddress,
       );
       final claimFunction = contract.function('claimReward');
 
@@ -136,7 +155,7 @@ class BlockchainService {
           ],
           maxGas: 500000,
         ),
-        chainId: 11155111, // Ethereum Sepolia
+        chainId: chainId,
       );
 
       if (onStatus != null) onStatus('Transaction submitted! Waiting for confirmation...');
@@ -156,14 +175,14 @@ class BlockchainService {
         return ClaimResult(
           success: false,
           txHash: txHash,
-          explorerUrl: '$_explorerBase/$txHash',
+          explorerUrl: '$explorerBase/$txHash',
           error: 'Transaction failed on-chain (reverted). Check Etherscan for details.',
         );
       } else if (receipt == null) {
         return ClaimResult(
           success: false,
           txHash: txHash,
-          explorerUrl: '$_explorerBase/$txHash',
+          explorerUrl: '$explorerBase/$txHash',
           error: 'Transaction confirmation timed out. It might still succeed.',
         );
       }
@@ -171,7 +190,7 @@ class BlockchainService {
       return ClaimResult(
         success: true,
         txHash: txHash,
-        explorerUrl: '$_explorerBase/$txHash',
+        explorerUrl: '$explorerBase/$txHash',
       );
     } catch (e) {
       return ClaimResult(
@@ -184,10 +203,13 @@ class BlockchainService {
   /// Reads program name and reward from the contract (no gas needed — read-only).
   static Future<Map<String, dynamic>?> getProgramInfo(int programId) async {
     try {
-      final client = Web3Client(_rpcUrl, http.Client());
+      final rpcUrl = _getRpcUrl(programId);
+      final payoutControllerAddress = _getPayoutControllerAddress(programId);
+
+      final client = Web3Client(rpcUrl, http.Client());
       final contract = DeployedContract(
         ContractAbi.fromJson(_payoutControllerAbi, 'PayoutController'),
-        _payoutControllerAddress,
+        payoutControllerAddress,
       );
 
       final result = await client.call(

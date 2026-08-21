@@ -3,6 +3,7 @@ import '../theme.dart';
 import '../services/database_service.dart';
 import '../services/github_service.dart';
 import '../services/wallet_service.dart';
+import '../widgets/reclaim_zktls_dialog.dart';
 
 class DataSourcesScreen extends StatefulWidget {
   const DataSourcesScreen({super.key});
@@ -55,67 +56,19 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
   }
 
   void _connectGitHub() {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: AppColors.surface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 24, right: 24, top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Connect GitHub', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const Text('Enter your GitHub username to securely fetch your public PR stats into your local enclave.', style: TextStyle(color: AppColors.secondaryText, fontSize: 14)),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _githubController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Username',
-                hintStyle: const TextStyle(color: AppColors.mutedGrey),
-                filled: true,
-                fillColor: AppColors.background,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                prefixIcon: const Icon(Icons.code, color: Color(0xFF6E5494)),
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final username = _githubController.text.trim();
-                  if (username.isEmpty) return;
-                  Navigator.pop(context);
-                  setState(() => _isLoadingGitHub = true);
-
-                  try {
-                    final prCount = await GithubService.fetchPullRequestCount(username);
-                    await _db.updateMetric('github_prs', prCount.toString(), 'github_api');
-                    if (mounted) _showSuccessSnackbar('GitHub Synced! Found $prCount PRs.');
-                  } catch (e) {
-                    if (mounted) _showSuccessSnackbar('Failed to fetch GitHub data.');
-                  } finally {
-                    if (mounted) setState(() => _isLoadingGitHub = false);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryAccent,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Connect & Sync', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 32),
-          ],
-        ),
+      barrierDismissible: false,
+      builder: (context) => ReclaimZkTlsDialog(
+        providerName: "GitHub",
+        providerId: "6d3f6753-7ee6-49ee-a545-62f1b1822ae5",
+        icon: Icons.code,
+        color: const Color(0xFF6E5494),
+        onSuccess: (extractedData, sigData) async {
+          final prCount = extractedData['github_prs'] ?? "0";
+          await _db.updateMetric('github_prs', prCount.toString(), 'github_api');
+          if (mounted) _showSuccessSnackbar('GitHub Synced! Found $prCount PRs.');
+        },
       ),
     );
   }

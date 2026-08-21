@@ -52,6 +52,52 @@ class ProofService {
     }
   }
 
+  static Future<String?> buildReclaimRequest(String providerId, String appId, String appSecret) async {
+    await initProver();
+    final scriptBody = """
+        try {
+          var res = await window.VeilProver.buildReclaimRequest('$providerId', '$appId', '$appSecret');
+          return res;
+        } catch(e) {
+          return JSON.stringify({success: false, error: e.toString()});
+        }
+    """;
+    final asyncResult = await _headlessWebView!.webViewController?.callAsyncJavaScript(functionBody: scriptBody);
+    if (asyncResult != null && asyncResult.value != null) {
+       final resStr = asyncResult.value as String;
+       final resMap = jsonDecode(resStr);
+       if (resMap['success'] == true) {
+         return resMap['requestUrl'];
+       } else {
+         print("Reclaim build request error: \${resMap['error']}");
+       }
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> startReclaimSession() async {
+    final scriptBody = """
+        try {
+          var res = await window.VeilProver.startReclaimSession();
+          return res;
+        } catch(e) {
+          return JSON.stringify({success: false, error: e.toString()});
+        }
+    """;
+    final asyncResult = await _headlessWebView!.webViewController?.callAsyncJavaScript(functionBody: scriptBody);
+    if (asyncResult != null && asyncResult.value != null) {
+       final resStr = asyncResult.value as String;
+       final resMap = jsonDecode(resStr);
+       if (resMap['success'] == true) {
+         return resMap['proof'];
+       } else {
+         print("Reclaim session error: \${resMap['error']}");
+       }
+    }
+    return null;
+  }
+
+
   /// Generates a Zero-Knowledge Proof for the Veil Universal Circuit via WASM JS bridge.
   static Future<Map<String, dynamic>> generateProof({
     required double minBalance,

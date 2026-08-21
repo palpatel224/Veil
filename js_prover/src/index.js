@@ -52,12 +52,57 @@ async function generateProofFromUrls(inputDataObj) {
 }
 
 // Attach to window for Flutter WebView
+import { ReclaimClient } from '@reclaimprotocol/js-sdk';
+
+let currentReclaimClient = null;
+
+async function buildReclaimRequest(providerId, appId, appSecret) {
+    try {
+        console.log(`Building Reclaim request for provider: ${providerId}`);
+        currentReclaimClient = new ReclaimClient(appId);
+        await currentReclaimClient.buildProofRequest(providerId);
+        
+        currentReclaimClient.setSignature(
+            await currentReclaimClient.generateSignature(appSecret)
+        );
+        
+        const requestUrl = await currentReclaimClient.createVerificationRequest();
+        
+        return JSON.stringify({ success: true, requestUrl: requestUrl });
+    } catch(e) {
+        console.error("Reclaim build request failed:", e);
+        return JSON.stringify({ success: false, error: e.toString() });
+    }
+}
+
+async function startReclaimSession() {
+    return new Promise((resolve) => {
+        if (!currentReclaimClient) {
+            resolve(JSON.stringify({ success: false, error: "No client initialized" }));
+            return;
+        }
+        console.log("Starting Reclaim session...");
+        currentReclaimClient.startSession({
+            onSuccessCallback: proof => {
+                console.log("Reclaim proof generated successfully.");
+                resolve(JSON.stringify({ success: true, proof: proof }));
+            },
+            onFailureCallback: error => {
+                console.error("Reclaim session failed:", error);
+                resolve(JSON.stringify({ success: false, error: error.toString() }));
+            }
+        });
+    });
+}
+
 if (typeof window !== 'undefined') {
     window.VeilProver = {
         init,
-        generateProofFromUrls
+        generateProofFromUrls,
+        buildReclaimRequest,
+        startReclaimSession
     };
     console.log("VeilProver attached to window.");
 }
 
-export { init, generateProofFromUrls };
+export { init, generateProofFromUrls, buildReclaimRequest, startReclaimSession };

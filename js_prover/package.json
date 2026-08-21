@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ezkljs/engine": "^22.0.1",
+    "@reclaimprotocol/js-sdk": "^5.8.2",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
     "os-browserify": "^0.3.0",

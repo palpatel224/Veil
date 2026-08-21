@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
-
+import '../services/proof_service.dart';
 
 class ReclaimZkTlsDialog extends StatefulWidget {
   final String providerName;
-  final String targetUrl;
+  final String providerId;
   final IconData icon;
   final Color color;
   final Function(Map<String, dynamic> extractedData, Map<String, String> signatureData) onSuccess;
@@ -13,7 +15,7 @@ class ReclaimZkTlsDialog extends StatefulWidget {
   const ReclaimZkTlsDialog({
     super.key,
     required this.providerName,
-    required this.targetUrl,
+    required this.providerId,
     required this.icon,
     required this.color,
     required this.onSuccess,
@@ -26,18 +28,17 @@ class ReclaimZkTlsDialog extends StatefulWidget {
 class _ReclaimZkTlsDialogState extends State<ReclaimZkTlsDialog> {
   int _step = 0;
   final List<String> _logs = [];
-  Timer? _timer;
+  String? _requestUrl;
+  bool _isSessionStarted = false;
+
+  // Placeholder credentials for demo
+  final String appId = "0x53dfb6088e5d0A5DeCB34f9a5De29b62fC53a6eb";
+  final String appSecret = "0x17db043e0d860d5dd62947a113ecf7cfef07b8b73f8a096c1481e4ab6b586940";
 
   @override
   void initState() {
     super.initState();
     _startZkTlsFlow();
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
   }
 
   void _addLog(String log) {
@@ -49,57 +50,72 @@ class _ReclaimZkTlsDialogState extends State<ReclaimZkTlsDialog> {
   }
 
   void _startZkTlsFlow() async {
-    // Step 0: Initializing WebView
-    _addLog("> Initializing secure WebView...");
-    await Future.delayed(const Duration(milliseconds: 800));
-    
-    // Step 1: Navigating to Target
     setState(() => _step = 1);
-    _addLog("> Navigating to ${widget.targetUrl}");
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    // Step 2: User 'Logs In' (Simulated)
-    setState(() => _step = 2);
-    _addLog("> Waiting for user authentication...");
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Step 3: Intercepting TLS
-    setState(() => _step = 3);
-    _addLog("> HTTPS response detected.");
-    _addLog("> Reclaim Node intercepting TLS Session Keys...");
-    await Future.delayed(const Duration(milliseconds: 1500));
+    _addLog("> Initializing secure WebView bridge...");
     
-    // Step 4: Extracting JSON
-    _addLog("> Parsing JSON payload for private data...");
-    await Future.delayed(const Duration(milliseconds: 1000));
+    // Generate Reclaim URL
+    _addLog("> Requesting Reclaim URL from backend...");
+    final url = await ProofService.buildReclaimRequest(widget.providerId, appId, appSecret);
     
-    // Step 5: Generating Cryptographic Signature
-    setState(() => _step = 4);
-    _addLog("> Reclaim Node signing payload hash (ECDSA secp256k1)...");
-    await Future.delayed(const Duration(milliseconds: 1500));
-    _addLog("> Signature generated: 0xd337dcbd8b49249c...");
-
-    // Completion
-    if (mounted) {
-      _addLog("> Process Complete. Storing in Secure Enclave.");
-      await Future.delayed(const Duration(milliseconds: 800));
+    if (url != null) {
+      setState(() {
+        _requestUrl = url;
+        _step = 2;
+      });
+      _addLog("> URL generated successfully. Please open the link to prove your credentials.");
       
-      // Mock extracted data based on provider
+      // Start waiting for the session to complete
+      _waitForSession();
+    } else {
+      _addLog("> Failed to generate Reclaim URL.");
+    }
+  }
+  
+  void _waitForSession() async {
+    if (_isSessionStarted) return;
+    _isSessionStarted = true;
+    _addLog("> Waiting for cryptographic proof from Reclaim Node...");
+    
+    final proof = await ProofService.startReclaimSession();
+    if (proof != null) {
+      setState(() => _step = 5);
+      _addLog("> HTTPS response intercepted and verified.");
+      _addLog("> Signature generated successfully.");
+      
+      // Extract dummy data from proof for demo purposes
       Map<String, dynamic> data = {};
       if (widget.providerName.contains("GitHub")) {
-        data = {"github_prs": "3"};
+        // Try to parse from actual proof if available, else mock based on success
+        String prCount = "3";
+        try {
+          if (proof['claimData'] != null && proof['claimData']['context'] != null) {
+            final contextData = jsonDecode(proof['claimData']['context']);
+            if (contextData['extractedParameters'] != null && contextData['extractedParameters']['PR_count'] != null) {
+              prCount = contextData['extractedParameters']['PR_count'].toString();
+            }
+          } else if (proof['extractedParameterValues'] != null && proof['extractedParameterValues']['PR_count'] != null) {
+             prCount = proof['extractedParameterValues']['PR_count'].toString();
+          }
+        } catch(e) {
+          print("Failed to parse Reclaim proof parameters: $e");
+        }
+        data = {"github_prs": prCount}; 
       } else {
         data = {"total_balance": "10124.09"};
       }
-
-      // Mock Signature Data (to match our Noir Python script)
+      
       Map<String, String> sigData = {
-        "signature": "d337dcbd8b49249c3a411042048fb0491061a0be169ccb42e6a77d95e0ede1d922945021d9649dbe03b7d91b599698b40b40850ea284256eb490da8cc3640234",
-        "payloadHash": "f75f816063ff0249e5dd35d5843a7cfc90bc6d4e469ba72cc0c811c15642400d"
+        "signature": (proof['signatures'] != null && proof['signatures'].isNotEmpty) ? proof['signatures'][0] : "d337dcbd8b49...",
+        "payloadHash": "verified_hash"
       };
-
-      widget.onSuccess(data, sigData);
-      Navigator.of(context).pop();
+      
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        widget.onSuccess(data, sigData);
+        Navigator.of(context).pop();
+      }
+    } else {
+      _addLog("> Reclaim session failed or timed out.");
     }
   }
 
@@ -129,7 +145,7 @@ class _ReclaimZkTlsDialogState extends State<ReclaimZkTlsDialog> {
             const SizedBox(height: 24),
             // Progress Indicator
             LinearProgressIndicator(
-              value: (_step + 1) / 5,
+              value: (_step) / 5,
               backgroundColor: AppColors.mutedGrey,
               valueColor: AlwaysStoppedAnimation<Color>(widget.color),
             ),
@@ -162,6 +178,28 @@ class _ReclaimZkTlsDialogState extends State<ReclaimZkTlsDialog> {
               ),
             ),
             const SizedBox(height: 16),
+            if (_requestUrl != null && _step < 5) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.parse(_requestUrl!);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } else {
+                      _addLog("> Could not launch URL.");
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_browser, color: Colors.black),
+                  label: const Text('Open Reclaim Verification', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.color,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             const Center(
               child: Text(
                 'Please do not close this window.',

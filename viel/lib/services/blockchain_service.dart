@@ -23,9 +23,9 @@ class ClaimResult {
 /// deployed on Ethereum Sepolia testnet.
 ///
 /// Contract addresses (Ethereum Sepolia, Chain ID 11155111):
-///   SimulatedVerifier : 0xa66D80cCC772D6eAA209426a4f210DEDAb2b5340
-///   NullifierRegistry : 0x063e2255DB2A4d756Dfa9d5929188446E07E54Ad
-///   PayoutController  : 0xB012655ba9cb837B93B70Adea3BCDfE488e11571
+///   Halo2Verifier     : 0x369005861e0E5E19229ED6D234C60750F159e241
+///   NullifierRegistry : 0x523030E89291C95cD8F7743f4C4B1433ff5383a6
+///   PayoutController  : 0x54b76c42BF69FA5b62637A4d0E5f9B46A58AE6c0
 class BlockchainService {
   // ── Network Config ──────────────────────────────────────────────────────────
   static const String _rpcUrl =
@@ -35,7 +35,7 @@ class BlockchainService {
 
   // ── Deployed Contract Addresses ─────────────────────────────────────────────
   static final EthereumAddress _payoutControllerAddress =
-      EthereumAddress.fromHex('0xB012655ba9cb837B93B70Adea3BCDfE488e11571');
+      EthereumAddress.fromHex('0xBb06731dfD073843c827794F6049cEA28E39A238');
 
   // ── PayoutController ABI ─────────────────────────────────────────────────────
   // Minimal ABI: only the functions we call from the app.

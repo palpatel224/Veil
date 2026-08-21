@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../theme.dart';
 import '../services/database_service.dart';
 import '../services/wallet_service.dart';
+import '../services/user_secret_service.dart';
 import '../models/program.dart';
 import 'data_sources_screen.dart';
 import 'check_eligibility_screen.dart';
@@ -18,6 +19,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _totalBalance = '0.00';
+  String _ethBalance = '0.00';
   String _githubPrs = '0';
   bool _isLoading = true;
 
@@ -29,10 +31,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadMetrics() async {
     final balance = await DatabaseService().getMetric('total_balance');
+    final eth = await DatabaseService().getMetric('eth_balance');
     final prs = await DatabaseService().getMetric('github_prs');
     if (mounted) {
       setState(() {
         _totalBalance = balance ?? '0.00';
+        _ethBalance = eth ?? '0.00';
         _githubPrs = prs ?? '0';
         _isLoading = false;
       });
@@ -51,9 +55,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final address = await db.getMetric('recipient_wallet');
             if (address != null && address.isNotEmpty) {
               try {
-                // Fetch live from blockchain
-                final balance = await WalletService.fetchBalance(address);
-                await db.updateMetric('total_balance', balance.toStringAsFixed(4), 'base_sepolia_rpc');
+                // Fetch live from multiple networks
+                final balances = await WalletService.fetchBalances(address);
+                await db.updateMetric('eth_balance', balances['ETH']!.toStringAsFixed(4), 'sepolia_rpc');
+                await db.updateMetric('total_balance', balances['USDC']!.toStringAsFixed(4), 'arc_testnet_rpc');
               } catch (_) {}
             }
             await _loadMetrics();
@@ -119,10 +124,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const CircleAvatar(
-                        radius: 18,
-                        backgroundColor: AppColors.primaryAccent,
-                        child: Icon(Icons.person, size: 20, color: Colors.white),
+                      GestureDetector(
+                        onLongPress: () async {
+                          // Developer tool to reset state and clear the claim nullifier
+                          await UserSecretService.resetSecret();
+                          await DatabaseService().updateMetric('github_prs', '0', 'reclaim');
+                          await _loadMetrics();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Dev: Reset User Secret & PRs. You can claim again.'))
+                            );
+                          }
+                        },
+                        child: const CircleAvatar(
+                          radius: 18,
+                          backgroundColor: AppColors.primaryAccent,
+                          child: Icon(Icons.person, size: 20, color: Colors.white),
+                        ),
                       ),
                     ],
                   )
@@ -131,65 +149,123 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 32),
               
               // Total Balance
-              Text('Total balance', style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _isLoading 
-                          ? const CircularProgressIndicator(color: AppColors.primaryAccent)
-                          : Text('$_totalBalance ETH', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 40)),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_user_outlined, size: 14, color: AppColors.secondaryText),
-                          const SizedBox(width: 6),
-                          Text('Private & Verifiable', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (_totalBalance == '0.00' && !_isLoading)
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const DataSourcesScreen())).then((_) => _loadMetrics());
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryAccent,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.add_link, size: 16, color: Colors.black),
-                            SizedBox(width: 6),
-                            Text('Connect Wallet', style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryAccent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.visibility_off_outlined, size: 14, color: AppColors.primaryAccent),
-                          SizedBox(width: 6),
-                          Text('Shielded', style: TextStyle(color: AppColors.primaryAccent, fontSize: 12, fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    )
+                  Text('Total Balance', style: Theme.of(context).textTheme.titleLarge),
                 ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.surface.withValues(alpha: 0.6),
+                      AppColors.surface,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(32),
+                  border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryAccent.withValues(alpha: 0.05),
+                      blurRadius: 32,
+                      offset: const Offset(0, 16),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    )
+                  ]
+                ),
+                child: _isLoading 
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: CircularProgressIndicator(color: AppColors.primaryAccent),
+                        ),
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryAccent.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(color: AppColors.primaryAccent, shape: BoxShape.circle),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text('Multi-Chain', style: TextStyle(color: AppColors.primaryAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                              if (_totalBalance == '0.00' && _ethBalance == '0.00')
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => const DataSourcesScreen())).then((_) => _loadMetrics());
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryAccent,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(color: AppColors.primaryAccent.withValues(alpha: 0.4), blurRadius: 8, offset: const Offset(0, 4))
+                                      ]
+                                    ),
+                                    child: const Text('Connect', style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.mutedGrey),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.shield_outlined, size: 14, color: AppColors.secondaryText),
+                                      SizedBox(width: 6),
+                                      Text('Shielded', style: TextStyle(color: AppColors.secondaryText, fontSize: 12, fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                )
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 60,
+                            child: PageView(
+                              scrollDirection: Axis.vertical,
+                              children: [
+                                _buildInnerBalanceContent('USDC', _totalBalance, 'Arc Testnet'),
+                                _buildInnerBalanceContent('ETH', _ethBalance, 'Ethereum Sepolia'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
               ),
               const SizedBox(height: 32),
 
@@ -329,6 +405,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
             )
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInnerBalanceContent(String symbol, String amount, String network) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text(
+            amount, 
+            style: GoogleFonts.spaceGrotesk(
+              textStyle: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: -1.5)
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            symbol, 
+            style: GoogleFonts.spaceGrotesk(
+              textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppColors.secondaryText, fontWeight: FontWeight.w600)
+            ),
+          ),
+          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(network, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

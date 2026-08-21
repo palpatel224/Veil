@@ -137,7 +137,7 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
               decoration: BoxDecoration(
                 color: Colors.black,
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 20, offset: const Offset(0, -10)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 20, offset: const Offset(0, -10)),
                 ]
               ),
               child: Row(

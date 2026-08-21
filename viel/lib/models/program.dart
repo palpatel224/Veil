@@ -47,4 +47,13 @@ const List<Program> availablePrograms = [
     requiredMinPrs: 0,
     reward: "Exclusive NFT",
   ),
+  Program(
+    id: 3,
+    name: "USDC Tester Grant",
+    sponsor: "Veil Network",
+    description: "Testnet USDC payout for zero-knowledge verifications. Prove you have merged >= 3 PRs.",
+    requiredMinBalance: 0.0,
+    requiredMinPrs: 3,
+    reward: "1 USDC",
+  ),
 ];

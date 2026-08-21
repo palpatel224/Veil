@@ -52,21 +52,17 @@ async function generateProofFromUrls(inputDataObj) {
 }
 
 // Attach to window for Flutter WebView
-import { ReclaimClient } from '@reclaimprotocol/js-sdk';
+import reclaimSdk from '@reclaimprotocol/js-sdk';
+const { ReclaimProofRequest } = reclaimSdk;
 
-let currentReclaimClient = null;
+let currentReclaimRequest = null;
 
 async function buildReclaimRequest(providerId, appId, appSecret) {
     try {
         console.log(`Building Reclaim request for provider: ${providerId}`);
-        currentReclaimClient = new ReclaimClient(appId);
-        await currentReclaimClient.buildProofRequest(providerId);
+        currentReclaimRequest = await ReclaimProofRequest.init(appId, appSecret, providerId);
         
-        currentReclaimClient.setSignature(
-            await currentReclaimClient.generateSignature(appSecret)
-        );
-        
-        const requestUrl = await currentReclaimClient.createVerificationRequest();
+        const requestUrl = await currentReclaimRequest.getRequestUrl();
         
         return JSON.stringify({ success: true, requestUrl: requestUrl });
     } catch(e) {
@@ -77,17 +73,17 @@ async function buildReclaimRequest(providerId, appId, appSecret) {
 
 async function startReclaimSession() {
     return new Promise((resolve) => {
-        if (!currentReclaimClient) {
+        if (!currentReclaimRequest) {
             resolve(JSON.stringify({ success: false, error: "No client initialized" }));
             return;
         }
         console.log("Starting Reclaim session...");
-        currentReclaimClient.startSession({
-            onSuccessCallback: proof => {
+        currentReclaimRequest.startSession({
+            onSuccess: proof => {
                 console.log("Reclaim proof generated successfully.");
                 resolve(JSON.stringify({ success: true, proof: proof }));
             },
-            onFailureCallback: error => {
+            onError: error => {
                 console.error("Reclaim session failed:", error);
                 resolve(JSON.stringify({ success: false, error: error.toString() }));
             }

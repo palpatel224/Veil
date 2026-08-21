@@ -32,13 +32,20 @@ class _ReclaimZkTlsDialogState extends State<ReclaimZkTlsDialog> {
   bool _isSessionStarted = false;
 
   // Placeholder credentials for demo
-  final String appId = "0x53dfb6088e5d0A5DeCB34f9a5De29b62fC53a6eb";
-  final String appSecret = "0x17db043e0d860d5dd62947a113ecf7cfef07b8b73f8a096c1481e4ab6b586940";
+  final String appId = "0xA3e396d039f7D02D03719F8c19a3B509403b06C2";
+  final String appSecret = "0x9cc298d5c968984bb22d7848bf46d8e85c35b86a43bd6b69f31380d33e96ec2e";
 
   @override
   void initState() {
     super.initState();
     _startZkTlsFlow();
+  }
+
+  @override
+  void dispose() {
+    // Dispose the heavy WebView immediately when the dialog is closed to free memory.
+    ProofService.disposeProver();
+    super.dispose();
   }
 
   void _addLog(String log) {
@@ -85,21 +92,39 @@ class _ReclaimZkTlsDialogState extends State<ReclaimZkTlsDialog> {
       // Extract dummy data from proof for demo purposes
       Map<String, dynamic> data = {};
       if (widget.providerName.contains("GitHub")) {
-        // Try to parse from actual proof if available, else mock based on success
-        String prCount = "3";
+        // Log the raw proof to the terminal to debug what Reclaim returned
+        debugPrint("RAW RECLAIM PROOF: $proof");
+        
+        String username = "";
         try {
-          if (proof['claimData'] != null && proof['claimData']['context'] != null) {
-            final contextData = jsonDecode(proof['claimData']['context']);
-            if (contextData['extractedParameters'] != null && contextData['extractedParameters']['PR_count'] != null) {
-              prCount = contextData['extractedParameters']['PR_count'].toString();
+          var p = proof;
+          if (proof is List && proof.isNotEmpty) {
+            p = proof[0];
+          }
+          
+          if (p['extractedParameterValues'] != null && p['extractedParameterValues']['username'] != null) {
+             username = p['extractedParameterValues']['username'].toString();
+          } else if (p['claimData'] != null && p['claimData']['context'] != null) {
+            final contextData = jsonDecode(p['claimData']['context'].toString());
+            if (contextData['extractedParameters'] != null && contextData['extractedParameters']['username'] != null) {
+              username = contextData['extractedParameters']['username'].toString();
             }
-          } else if (proof['extractedParameterValues'] != null && proof['extractedParameterValues']['PR_count'] != null) {
-             prCount = proof['extractedParameterValues']['PR_count'].toString();
+          }
+          
+          // Last resort fallback
+          if (username.isEmpty && p['claimData'] != null && p['claimData']['parameters'] != null) {
+             dynamic params = p['claimData']['parameters'];
+             if (params is String) {
+               params = jsonDecode(params);
+             }
+             if (params['paramValues'] != null && params['paramValues']['username'] != null) {
+               username = params['paramValues']['username'].toString();
+             }
           }
         } catch(e) {
-          print("Failed to parse Reclaim proof parameters: $e");
+          debugPrint("Failed to parse Reclaim proof parameters: $e");
         }
-        data = {"github_prs": prCount}; 
+        data = {"github_username": username}; 
       } else {
         data = {"total_balance": "10124.09"};
       }
@@ -185,7 +210,7 @@ class _ReclaimZkTlsDialogState extends State<ReclaimZkTlsDialog> {
                   onPressed: () async {
                     final uri = Uri.parse(_requestUrl!);
                     if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      await launchUrl(uri, mode: LaunchMode.inAppWebView);
                     } else {
                       _addLog("> Could not launch URL.");
                     }

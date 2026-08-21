@@ -17,9 +17,28 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
   bool _isLoadingGitHub = false;
   bool _isLoadingWallet = false;
   bool _isLoadingGovt = false;
+  String? _githubPrs;
+  String? _walletBalance;
 
   final TextEditingController _githubController = TextEditingController();
   final TextEditingController _walletController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetrics();
+  }
+
+  Future<void> _loadMetrics() async {
+    final prs = await _db.getMetric('github_prs');
+    final balance = await _db.getMetric('total_balance');
+    if (mounted) {
+      setState(() {
+        _githubPrs = prs;
+        _walletBalance = balance;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -65,9 +84,24 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
         icon: Icons.code,
         color: const Color(0xFF6E5494),
         onSuccess: (extractedData, sigData) async {
-          final prCount = extractedData['github_prs'] ?? "0";
-          await _db.updateMetric('github_prs', prCount.toString(), 'github_api');
-          if (mounted) _showSuccessSnackbar('GitHub Synced! Found $prCount PRs.');
+          final username = extractedData['github_username'];
+          if (username != null && username.toString().isNotEmpty) {
+            try {
+              if (mounted) setState(() => _isLoadingGitHub = true);
+              final prCount = await GithubService.fetchPullRequestCount(username.toString());
+              await _db.updateMetric('github_prs', prCount.toString(), 'github_api');
+              if (mounted) {
+                _showSuccessSnackbar('GitHub Synced! Verified $username with $prCount PRs.');
+                _loadMetrics();
+              }
+            } catch (e) {
+              if (mounted) _showSuccessSnackbar('Failed to fetch PRs for $username.');
+            } finally {
+              if (mounted) setState(() => _isLoadingGitHub = false);
+            }
+          } else {
+            if (mounted) _showSuccessSnackbar('Failed to extract GitHub username.');
+          }
         },
       ),
     );
@@ -115,12 +149,18 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
                   setState(() => _isLoadingWallet = true);
 
                   try {
-                    final balance = await WalletService.fetchBalance(address);
-                    final formattedBalance = balance.toStringAsFixed(4);
-                    await _db.updateMetric('total_balance', formattedBalance, 'base_sepolia_rpc');
+                    final balances = await WalletService.fetchBalances(address);
+                    final ethFormatted = balances['ETH']!.toStringAsFixed(4);
+                    final usdcFormatted = balances['USDC']!.toStringAsFixed(4);
+                    
+                    await _db.updateMetric('eth_balance', ethFormatted, 'sepolia_rpc');
+                    await _db.updateMetric('total_balance', usdcFormatted, 'arc_testnet_rpc');
                     // Save the wallet address itself so we know where to send rewards!
                     await _db.updateMetric('recipient_wallet', address, 'user');
-                    if (mounted) _showSuccessSnackbar('Wallet Synced! Balance: $formattedBalance ETH');
+                    if (mounted) {
+                      _showSuccessSnackbar('Wallet Synced! Balance: $usdcFormatted USDC');
+                      _loadMetrics();
+                    }
                   } catch (e) {
                     if (mounted) _showSuccessSnackbar('Failed to fetch Wallet balance.');
                   } finally {
@@ -205,7 +245,7 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
 
             _buildIntegrationCard(
               title: 'GitHub (Open API)',
-              subtitle: 'Fetch your merged PRs securely.',
+              subtitle: _githubPrs != null ? 'Connected: $_githubPrs PRs' : 'Fetch your merged PRs securely.',
               icon: Icons.code,
               isLoading: _isLoadingGitHub,
               onTap: _connectGitHub,
@@ -214,7 +254,7 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
             const SizedBox(height: 16),
             _buildIntegrationCard(
               title: 'Base Network',
-              subtitle: 'Sync wallet balance (Sepolia).',
+              subtitle: _walletBalance != null ? 'Connected: $_walletBalance ETH' : 'Sync wallet balance (Sepolia).',
               icon: Icons.account_balance_wallet,
               isLoading: _isLoadingWallet,
               onTap: _connectWallet,

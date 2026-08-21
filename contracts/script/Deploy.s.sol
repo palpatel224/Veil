@@ -2,9 +2,10 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import "../src/SimulatedVerifier.sol";
+import "../src/Halo2Verifier.sol";
 import "../src/NullifierRegistry.sol";
 import "../src/PayoutController.sol";
+import "../src/MockUSDC.sol";
 
 /**
  * @title Deploy
@@ -35,11 +36,11 @@ contract Deploy is Script {
 
         vm.startBroadcast(deployerKey);
 
-        // 1. Deploy Verifier
-        SimulatedVerifier verifier = new SimulatedVerifier();
-        console.log("SimulatedVerifier deployed at:", address(verifier));
+        // 1. Re-use Verifier
+        Halo2Verifier verifier = Halo2Verifier(0x369005861e0E5E19229ED6D234C60750F159e241);
+        console.log("Halo2Verifier re-used at:", address(verifier));
 
-        // 2. Deploy NullifierRegistry (no controller yet)
+        // 2. Deploy new NullifierRegistry
         NullifierRegistry nullifierRegistry = new NullifierRegistry();
         console.log("NullifierRegistry deployed at:", address(nullifierRegistry));
 
@@ -53,10 +54,23 @@ contract Deploy is Script {
         // 4. Wire the registry to the controller
         nullifierRegistry.setController(address(controller));
 
-        // Fund the 3 launch programs (0.01 ETH each = 0.03 ETH total)
-        controller.depositReward{value: 0.01 ether}(1, "Developer Starter Grant");
-        controller.depositReward{value: 0.01 ether}(2, "Open Source Champion");
-        controller.depositReward{value: 0.01 ether}(3, "GitHub Power User");
+        // Fund the 3 launch programs (0.001 ETH each = 0.003 ETH total)
+        // controller.depositReward{value: 0.001 ether}(1, "Developer Starter Grant");
+        // controller.depositReward{value: 0.001 ether}(2, "Open Source Champion");
+        // controller.depositReward{value: 0.001 ether}(3, "GitHub Power User");
+
+        // Deploy MockUSDC and fund program 4
+        MockUSDC usdc = new MockUSDC();
+        console.log("MockUSDC deployed at:", address(usdc));
+
+        // Mint 100 USDC to deployer
+        usdc.mint(deployer, 100 * 10**6);
+
+        // Approve PayoutController to spend 1 USDC
+        usdc.approve(address(controller), 1 * 10**6);
+
+        // Deposit 1 USDC reward
+        controller.depositERC20Reward(4, "USDC Tester Grant", address(usdc), 1 * 10**6);
 
         console.log("\n=== DEPLOYMENT COMPLETE ===");
         console.log("Copy these addresses into blockchain_service.dart:");

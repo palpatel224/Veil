@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./SimulatedVerifier.sol";
+import "./Halo2Verifier.sol";
 import "./NullifierRegistry.sol";
+
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+}
 
 /**
  * @title PayoutController
@@ -25,7 +30,7 @@ contract PayoutController {
     //  State
     // ────────────────────────────────────────────────────
 
-    SimulatedVerifier public immutable verifier;
+    Halo2Verifier public immutable verifier;
     NullifierRegistry public immutable nullifierRegistry;
     address public immutable owner;
 
@@ -34,6 +39,9 @@ contract PayoutController {
 
     /// @notice programId => human-readable name (optional, for UI)
     mapping(uint256 => string) public programNames;
+
+    /// @notice programId => token address (address(0) for ETH)
+    mapping(uint256 => address) public programTokens;
 
     // ────────────────────────────────────────────────────
     //  Events
@@ -62,7 +70,7 @@ contract PayoutController {
     // ────────────────────────────────────────────────────
 
     constructor(address _verifier, address _nullifierRegistry) {
-        verifier = SimulatedVerifier(_verifier);
+        verifier = Halo2Verifier(_verifier);
         nullifierRegistry = NullifierRegistry(_nullifierRegistry);
         owner = msg.sender;
     }
@@ -85,7 +93,20 @@ contract PayoutController {
         require(msg.value > 0, "PayoutController: zero deposit");
         programRewards[programId] += msg.value;
         programNames[programId] = name;
+        programTokens[programId] = address(0);
         emit RewardDeposited(programId, msg.value, name);
+    }
+
+    /**
+     * @notice Sponsor deposits ERC20 token to fund a specific program's rewards.
+     */
+    function depositERC20Reward(uint256 programId, string calldata name, address token, uint256 amount) external onlyOwner {
+        require(amount > 0, "PayoutController: zero deposit");
+        require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        programRewards[programId] += amount;
+        programNames[programId] = name;
+        programTokens[programId] = token;
+        emit RewardDeposited(programId, amount, name);
     }
 
     // ────────────────────────────────────────────────────
@@ -118,7 +139,7 @@ contract PayoutController {
         }
 
         // 3. Verify the ZK proof (structural + commitment check)
-        bool valid = verifier.verify(proof, publicInputs);
+        bool valid = verifier.verifyProof(proof, publicInputs);
         if (!valid) revert InvalidProof();
 
         // 4. Mark nullifier as spent BEFORE transfer (reentrancy protection)
@@ -128,7 +149,7 @@ contract PayoutController {
         programRewards[programId] = 0;
 
         // 6. Execute payout
-        _executePayout(recipient, reward);
+        _executePayout(programId, recipient, reward);
 
         emit RewardClaimed(programId, nullifierHash, recipient, reward);
     }
@@ -143,9 +164,15 @@ contract PayoutController {
      *      RailgunSmartWallet.shield(recipient_0zk_address, amount)
      *      to make the payout completely anonymous.
      */
-    function _executePayout(address recipient, uint256 amount) internal {
-        (bool success, ) = recipient.call{value: amount}("");
-        if (!success) revert TransferFailed();
+    function _executePayout(uint256 programId, address recipient, uint256 amount) internal {
+        address token = programTokens[programId];
+        if (token == address(0)) {
+            (bool success, ) = recipient.call{value: amount}("");
+            if (!success) revert TransferFailed();
+        } else {
+            bool success = IERC20(token).transfer(recipient, amount);
+            if (!success) revert TransferFailed();
+        }
     }
 
     // ────────────────────────────────────────────────────

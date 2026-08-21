@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter/foundation.dart';
 import '../services/database_service.dart';
 
 class ProofService {
@@ -20,24 +21,21 @@ class ProofService {
       _headlessWebView = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(url: WebUri("http://localhost:8080/index.html")),
         onWebViewCreated: (controller) {
-          print("HeadlessInAppWebView created");
+          debugPrint("HeadlessInAppWebView created");
         },
         onLoadStop: (controller, url) async {
-          print("HeadlessInAppWebView loaded: $url");
+          debugPrint("HeadlessInAppWebView loaded: $url");
           if (_webViewReadyCompleter != null && !_webViewReadyCompleter!.isCompleted) {
             _webViewReadyCompleter?.complete();
           }
         },
         onConsoleMessage: (controller, consoleMessage) {
-          print("Prover JS: ${consoleMessage.message}");
+          debugPrint("Prover JS: ${consoleMessage.message}");
         },
       );
 
       await _headlessWebView?.run();
       await _webViewReadyCompleter?.future;
-      
-      // Initialize the prover
-      await _headlessWebView!.webViewController?.evaluateJavascript(source: "window.VeilProver.init();");
     }
   }
 
@@ -69,13 +67,13 @@ class ProofService {
        if (resMap['success'] == true) {
          return resMap['requestUrl'];
        } else {
-         print("Reclaim build request error: \${resMap['error']}");
+         debugPrint("Reclaim build request error: ${resMap['error']}");
        }
     }
     return null;
   }
 
-  static Future<Map<String, dynamic>?> startReclaimSession() async {
+  static Future<dynamic> startReclaimSession() async {
     final scriptBody = """
         try {
           var res = await window.VeilProver.startReclaimSession();
@@ -91,7 +89,7 @@ class ProofService {
        if (resMap['success'] == true) {
          return resMap['proof'];
        } else {
-         print("Reclaim session error: \${resMap['error']}");
+         debugPrint("Reclaim session error: ${resMap['error']}");
        }
     }
     return null;
@@ -136,6 +134,7 @@ class ProofService {
 
       final scriptBody = """
           try {
+            await window.VeilProver.init();
             var inputObj = $inputJson;
             var proof = await window.VeilProver.generateProofFromUrls(inputObj);
             return JSON.stringify({success: true, proof: proof});
@@ -161,7 +160,7 @@ class ProofService {
                   hexStr = hexStr.substring(2);
                 }
                 if (hexStr.length % 2 != 0) {
-                  hexStr = '0' + hexStr;
+                  hexStr = '0$hexStr';
                 }
                 
                 String reversedHex = '';
@@ -194,6 +193,9 @@ class ProofService {
         'success': false,
         'error': e.toString(),
       };
+    } finally {
+      // Ensure the heavy WASM WebView is always cleaned up after proof generation
+      await disposeProver();
     }
   }
 }

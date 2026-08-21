@@ -51,7 +51,7 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
     if (mounted) {
       setState(() {
         _userSecret = results[0] as String;
-        final wallet = results[1] as String?;
+        final wallet = results[1];
         if (wallet != null && wallet.isNotEmpty) {
           _recipientAddress = wallet;
         }
@@ -304,10 +304,10 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
             const Text('Proof Verified On-Chain!',
                 style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text(
-              'Your ZK proof was accepted and\n0.01 sETH reward has been sent.',
+            Text(
+              'Your ZK proof was accepted and\n${widget.program?.id == 3 ? '1 USDC' : '0.001 sETH'} reward has been sent.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.secondaryText, fontSize: 15),
+              style: const TextStyle(color: AppColors.secondaryText, fontSize: 15),
             ),
             const SizedBox(height: 32),
 

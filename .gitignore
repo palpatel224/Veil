@@ -16,3 +16,7 @@ js_prover/dist/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+
+# Local markdown files
+hackathon_submission.md
+project_state.md

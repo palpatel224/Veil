@@ -70,7 +70,7 @@ contract Deploy is Script {
         usdc.approve(address(controller), 1 * 10**6);
 
         // Deposit 1 USDC reward
-        controller.depositERC20Reward(4, "USDC Tester Grant", address(usdc), 1 * 10**6);
+        controller.depositERC20Reward(4, "USDC Tester Grant", address(usdc), 1 * 10**6, 1 * 10**6);
 
         console.log("\n=== DEPLOYMENT COMPLETE ===");
         console.log("Copy these addresses into blockchain_service.dart:");

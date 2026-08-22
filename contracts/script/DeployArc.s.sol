@@ -37,7 +37,7 @@ contract DeployArc is Script {
         nullifierRegistry.setController(address(controller));
 
         // Fund program 4 for ARC Testnet (1 ARC reward)
-        controller.depositReward{value: 1 ether}(4, "ARC Testnet Native Grant");
+        controller.depositReward{value: 1 ether}(4, "ARC Testnet Native Grant", 0.001 ether);
 
         console.log("\n=== DEPLOYMENT COMPLETE ===");
         console.log("VERIFIER_ADDRESS    =", address(verifier));

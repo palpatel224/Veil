@@ -34,8 +34,11 @@ contract PayoutController {
     NullifierRegistry public immutable nullifierRegistry;
     address public immutable owner;
 
-    /// @notice programId => deposited reward amount in wei
-    mapping(uint256 => uint256) public programRewards;
+    /// @notice programId => total deposited reward pool in wei
+    mapping(uint256 => uint256) public programPoolBalance;
+
+    /// @notice programId => fixed reward amount paid per claim
+    mapping(uint256 => uint256) public programPayoutAmount;
 
     /// @notice programId => human-readable name (optional, for UI)
     mapping(uint256 => string) public programNames;
@@ -88,10 +91,13 @@ contract PayoutController {
      * @notice Sponsor deposits ETH to fund a specific program's rewards.
      * @param programId  Unique identifier for the program (e.g., 1 = Developer Grant).
      * @param name       Human-readable name for UI display.
+     * @param payoutAmount Fixed amount of ETH awarded to each valid claim.
      */
-    function depositReward(uint256 programId, string calldata name) external payable onlyOwner {
+    function depositReward(uint256 programId, string calldata name, uint256 payoutAmount) external payable onlyOwner {
         require(msg.value > 0, "PayoutController: zero deposit");
-        programRewards[programId] += msg.value;
+        require(payoutAmount > 0 && msg.value >= payoutAmount, "PayoutController: invalid payout amount");
+        programPoolBalance[programId] += msg.value;
+        programPayoutAmount[programId] = payoutAmount;
         programNames[programId] = name;
         programTokens[programId] = address(0);
         emit RewardDeposited(programId, msg.value, name);
@@ -100,10 +106,12 @@ contract PayoutController {
     /**
      * @notice Sponsor deposits ERC20 token to fund a specific program's rewards.
      */
-    function depositERC20Reward(uint256 programId, string calldata name, address token, uint256 amount) external onlyOwner {
+    function depositERC20Reward(uint256 programId, string calldata name, address token, uint256 amount, uint256 payoutAmount) external onlyOwner {
         require(amount > 0, "PayoutController: zero deposit");
+        require(payoutAmount > 0 && amount >= payoutAmount, "PayoutController: invalid payout amount");
         require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Transfer failed");
-        programRewards[programId] += amount;
+        programPoolBalance[programId] += amount;
+        programPayoutAmount[programId] = payoutAmount;
         programNames[programId] = name;
         programTokens[programId] = token;
         emit RewardDeposited(programId, amount, name);
@@ -130,8 +138,9 @@ contract PayoutController {
         address recipient
     ) external {
         // 1. Ensure the program has funds available
-        uint256 reward = programRewards[programId];
+        uint256 reward = programPayoutAmount[programId];
         if (reward == 0) revert NoRewardForProgram(programId);
+        if (programPoolBalance[programId] < reward) revert NoRewardForProgram(programId); // Depleted pool
 
         // 2. Ensure this nullifier hasn't been used (prevents double claiming)
         if (nullifierRegistry.isSpent(nullifierHash)) {
@@ -145,8 +154,8 @@ contract PayoutController {
         // 4. Mark nullifier as spent BEFORE transfer (reentrancy protection)
         nullifierRegistry.markSpent(nullifierHash);
 
-        // 5. Clear the reward slot
-        programRewards[programId] = 0;
+        // 5. Deduct the payout amount from the pool balance
+        programPoolBalance[programId] -= reward;
 
         // 6. Execute payout
         _executePayout(programId, recipient, reward);
@@ -181,7 +190,7 @@ contract PayoutController {
 
     /// @notice Returns reward amount and name for a given program.
     function getProgram(uint256 programId) external view returns (string memory name, uint256 rewardWei) {
-        return (programNames[programId], programRewards[programId]);
+        return (programNames[programId], programPayoutAmount[programId]);
     }
 
     /// @notice Allow contract to receive ETH for emergencies/re-funding.

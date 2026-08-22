@@ -21,7 +21,7 @@ Building a complete "Prove → Verify → Pay" pipeline that runs locally on-dev
    Quantizing our Logistic Regression model into fixed-point arithmetic for the ZK circuit introduced slight variations from the native PyTorch outputs. We had to carefully calibrate the circuit scale factors (`settings.json`) to ensure the on-chain `Verifier.sol` would accept the proof and that the threshold logic (e.g., matching the exact income/spending requirements) evaluated consistently.
 
 3. **Mobile ZK Proving Overhead:**
-   Generating ZK proofs locally on a mobile device (Flutter) requires significant computational overhead and can feel sluggish to the user. We solved the UX side of this by designing a "cypherpunk" cryptographic terminal animation that provides real-time haptic feedback and dynamic loading states, keeping the user engaged and informed while the heavy cryptographic operations happen in the background.
+   Generating ZK proofs locally on a mobile device (Flutter) requires significant computational overhead and can feel sluggish to the user. We solved the UX side of this by designing an animation that keeps the user engaged and informed while the heavy cryptographic operations happen in the background.
 
 ## Tracks Applied
 

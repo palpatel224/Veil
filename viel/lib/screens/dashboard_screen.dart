@@ -119,14 +119,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               
-              // Total Balance
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Total Balance', style: Theme.of(context).textTheme.titleLarge),
-                ],
-              ),
-              const SizedBox(height: 16),
+
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(28),

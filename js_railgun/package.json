@@ -1,0 +1,31 @@
+{
+  "name": "js_railgun",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@railgun-community/engine": "^9.6.0",
+    "@railgun-community/shared-models": "^8.0.1",
+    "@railgun-community/wallet": "^10.9.0",
+    "browserify": "^17.0.1",
+    "crypto-browserify": "^3.12.1",
+    "ethers": "^6.17.0",
+    "level-js": "^6.1.0",
+    "stream-browserify": "^3.0.0",
+    "webpack": "^5.109.2",
+    "webpack-cli": "^7.2.2"
+  },
+  "devDependencies": {
+    "ajv": "^8.12.0",
+    "ajv-keywords": "^5.1.0",
+    "ts-loader": "^9.6.2",
+    "typescript": "^7.0.2"
+  }
+}

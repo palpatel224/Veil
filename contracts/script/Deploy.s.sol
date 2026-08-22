@@ -54,10 +54,8 @@ contract Deploy is Script {
         // 4. Wire the registry to the controller
         nullifierRegistry.setController(address(controller));
 
-        // Fund the 3 launch programs (0.001 ETH each = 0.003 ETH total)
-        // controller.depositReward{value: 0.001 ether}(1, "Developer Starter Grant");
-        // controller.depositReward{value: 0.001 ether}(2, "Open Source Champion");
-        // controller.depositReward{value: 0.001 ether}(3, "GitHub Power User");
+        // Fund the ETH launch program
+        controller.depositReward{value: 0.005 ether}(6, "ETH Hacker Grant", 0.001 ether);
 
         // Deploy MockUSDC and fund program 4
         MockUSDC usdc = new MockUSDC();
@@ -66,11 +64,11 @@ contract Deploy is Script {
         // Mint 100 USDC to deployer
         usdc.mint(deployer, 100 * 10**6);
 
-        // Approve PayoutController to spend 1 USDC
-        usdc.approve(address(controller), 1 * 10**6);
+        // Approve PayoutController to spend 10 USDC
+        usdc.approve(address(controller), 10 * 10**6);
 
-        // Deposit 1 USDC reward
-        controller.depositERC20Reward(4, "USDC Tester Grant", address(usdc), 1 * 10**6, 1 * 10**6);
+        // Deposit 10 USDC reward (payout 2 USDC per claim)
+        controller.depositERC20Reward(7, "USDC Power User", address(usdc), 10 * 10**6, 2 * 10**6);
 
         console.log("\n=== DEPLOYMENT COMPLETE ===");
         console.log("Copy these addresses into blockchain_service.dart:");

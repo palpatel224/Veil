@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../services/database_service.dart';
 import 'data_sources_screen.dart';
+import 'transaction_history_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,7 +13,10 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _totalBalance = '0.00';
+  String _walletAddress = '0x...';
+  String _githubPrs = '0';
   bool _isLoading = true;
+
 
   @override
   void initState() {
@@ -21,10 +25,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadMetrics() async {
-    final balance = await DatabaseService().getMetric('total_balance');
+    final db = DatabaseService();
+    final balance = await db.getMetric('total_balance');
+    final address = await db.getMetric('recipient_wallet');
+
+    final prs = await db.getMetric('github_prs');
+    
     if (mounted) {
       setState(() {
         _totalBalance = balance ?? '0.00';
+        _walletAddress = (address != null && address.length > 10) 
+            ? '${address.substring(0, 6)}...${address.substring(address.length - 4)}' 
+            : '0x...';
+        _githubPrs = prs ?? '0';
         _isLoading = false;
       });
     }
@@ -63,7 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 112, left: 24, right: 24),
       ),
     );
   }
@@ -126,15 +139,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showDummySnackbar(context, 'Wallet disconnected (Mock).');
-                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.redAccent,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        setState(() => _isLoading = true);
+                        final db = DatabaseService();
+                        await db.deleteMetric('recipient_wallet');
+                        await db.deleteMetric('total_balance');
+                        await db.deleteMetric('eth_balance');
+                        await db.deleteMetric('arc_balance');
+                        await db.clearAllTransactions();
+                        await _loadMetrics();
+                        if (!context.mounted) return;
+                        _showDummySnackbar(context, 'Wallet disconnected successfully');
+                      },
                       child: const Text('Disconnect', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -151,10 +173,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-        centerTitle: true,
+        title: const Text('Profile', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            onPressed: () {},
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -167,14 +196,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Alex Doe', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Text('Anon User', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    const Text('0x71...E8F4', style: TextStyle(color: AppColors.secondaryText, fontSize: 14)),
+                    Text(_walletAddress, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                      child: const Text('Verified', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: const Text('ZK Verified', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
                     )
                   ],
                 )
@@ -210,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () => _showDummySnackbar(context, 'Receive features coming in Phase X'),
+                          onPressed: () => _showReceiveModal(context),
                           style: ElevatedButton.styleFrom(backgroundColor: AppColors.mutedGrey, foregroundColor: Colors.white),
                           child: const Text('Receive'),
                         ),
@@ -218,7 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () => _showDummySnackbar(context, 'Send features coming in Phase X'),
+                          onPressed: () => _showSendModal(context),
                           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.white),
                           child: const Text('Send'),
                         ),
@@ -231,14 +260,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 40),
             
             _buildSectionHeader('Wallet'),
-            _buildListTile(context, Icons.account_balance_wallet_outlined, 'Balance', () => _showDummySnackbar(context, 'Balance details coming soon')),
-            _buildListTile(context, Icons.history, 'Transaction history', () => _showDummySnackbar(context, 'Transaction history coming soon')),
+            _buildListTile(context, Icons.account_balance_wallet_outlined, 'Balance', () => _showDummySnackbar(context, 'Total Shielded: \$$_totalBalance USDC')),
+            _buildListTile(context, Icons.history, 'Transaction history', () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TransactionHistoryScreen()))),
             
             const SizedBox(height: 24),
             _buildSectionHeader('My Activity'),
-            _buildListTile(context, Icons.verified_outlined, 'Claims', () => _showDummySnackbar(context, 'Claims coming soon')),
-            _buildListTile(context, Icons.file_copy_outlined, 'Proofs', () => _showDummySnackbar(context, 'Proofs coming soon')),
-            _buildListTile(context, Icons.card_giftcard, 'Rewards received', () => _showDummySnackbar(context, 'Rewards coming soon')),
+            _buildListTile(context, Icons.verified_outlined, 'Claims', () => _showDummySnackbar(context, '$_githubPrs GitHub PR claims verified')),
+            _buildListTile(context, Icons.file_copy_outlined, 'Proofs', () => _showDummySnackbar(context, 'Proofs generated locally are not tracked for privacy')),
+            _buildListTile(context, Icons.card_giftcard, 'Rewards received', () => _showDummySnackbar(context, 'Rewards sync coming in Phase 2')),
             
             const SizedBox(height: 24),
             _buildSectionHeader('Private Data'),
@@ -272,7 +301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: const Text('Disconnect Wallet', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 120),
           ],
         ),
       ),
@@ -297,6 +326,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
       trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 12),
       onTap: onTap,
+    );
+  }
+
+
+  void _showReceiveModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Receive Funds', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  children: [
+                    const Icon(Icons.qr_code_2, size: 100, color: Colors.white),
+                    const SizedBox(height: 16),
+                    Text(
+                      _walletAddress == '0x...' ? 'No wallet connected' : _walletAddress,
+                      style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Copy Address'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.white),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showDummySnackbar(context, 'Address copied to clipboard!');
+                  },
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSendModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Send Funds', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              TextField(
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Recipient Address (0x...)',
+                  hintStyle: const TextStyle(color: AppColors.secondaryText),
+                  filled: true,
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                style: const TextStyle(color: Colors.white),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  hintText: 'Amount (ETH)',
+                  hintStyle: const TextStyle(color: AppColors.secondaryText),
+                  filled: true,
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showDummySnackbar(context, 'Send functionality will interact with BlockchainService soon.');
+                  },
+                  child: const Text('Send Transaction', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        );
+      },
     );
   }
 }

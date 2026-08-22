@@ -6,6 +6,7 @@ class Program {
   final double requiredMinBalance;
   final int requiredMinPrs;
   final String reward;
+  final String category;
 
   const Program({
     required this.id,
@@ -15,6 +16,7 @@ class Program {
     required this.requiredMinBalance,
     required this.requiredMinPrs,
     required this.reward,
+    this.category = 'Grants',
   });
 }
 
@@ -28,6 +30,7 @@ const List<Program> availablePrograms = [
     requiredMinBalance: 0.0,
     requiredMinPrs: 3,
     reward: "\$10 USDC",
+    category: "Grants",
   ),
   Program(
     id: 1,
@@ -37,6 +40,7 @@ const List<Program> availablePrograms = [
     requiredMinBalance: 0.0,
     requiredMinPrs: 20,
     reward: "\$200 USDC",
+    category: "Scholarships",
   ),
   Program(
     id: 2,
@@ -46,6 +50,7 @@ const List<Program> availablePrograms = [
     requiredMinBalance: 10000.0,
     requiredMinPrs: 0,
     reward: "Exclusive NFT",
+    category: "Cashback",
   ),
   Program(
     id: 3,
@@ -55,6 +60,7 @@ const List<Program> availablePrograms = [
     requiredMinBalance: 0.0,
     requiredMinPrs: 3,
     reward: "1 USDC",
+    category: "Grants",
   ),
   Program(
     id: 4,
@@ -64,6 +70,7 @@ const List<Program> availablePrograms = [
     requiredMinBalance: 0.0,
     requiredMinPrs: 3,
     reward: "1 ARC",
+    category: "Grants",
   ),
   Program(
     id: 5,
@@ -73,6 +80,7 @@ const List<Program> availablePrograms = [
     requiredMinBalance: 0.0,
     requiredMinPrs: 5,
     reward: "0.001 ETH",
+    category: "Grants",
   ),
   Program(
     id: 6,
@@ -82,5 +90,6 @@ const List<Program> availablePrograms = [
     requiredMinBalance: 0.0,
     requiredMinPrs: 10,
     reward: "2 USDC",
+    category: "Refunds",
   ),
 ];

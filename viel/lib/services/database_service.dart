@@ -133,6 +133,15 @@ class DatabaseService {
     return null;
   }
 
+  Future<void> deleteMetric(String name) async {
+    final db = await database;
+    await db.delete(
+      'user_metrics',
+      where: 'metric_name = ?',
+      whereArgs: [name],
+    );
+  }
+
   Future<Map<String, String>> getAllMetrics() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('user_metrics');
@@ -161,5 +170,10 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getTransactions() async {
     final db = await database;
     return await db.query('transactions', orderBy: 'id DESC', limit: 10);
+  }
+
+  Future<void> clearAllTransactions() async {
+    final db = await database;
+    await db.delete('transactions');
   }
 }

@@ -9,6 +9,9 @@ import '../models/program.dart';
 import 'data_sources_screen.dart';
 import 'check_eligibility_screen.dart';
 import 'generate_proof_screen.dart';
+import 'programs_screen.dart';
+import 'transaction_history_screen.dart';
+import '../widgets/transaction_details_modal.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -52,6 +55,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: SvgPicture.asset(
+          'assets/veil_logo.svg',
+          height: 28,
+        ),
+        centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            onPressed: () {},
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onLongPress: () async {
+              // Developer tool to reset state and clear the claim nullifier
+              await UserSecretService.resetSecret();
+              await DatabaseService().updateMetric('github_prs', '0', 'reclaim');
+              await _loadMetrics();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('State reset. Nullifier cleared.', style: TextStyle(color: Colors.white)),
+                    behavior: SnackBarBehavior.floating,
+                    margin: EdgeInsets.only(bottom: 112, left: 24, right: 24),
+                  )
+                );
+              }
+            },
+            child: const CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.primaryAccent,
+              child: Icon(Icons.person, size: 16, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 24),
+        ],
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.primaryAccent,
@@ -76,84 +118,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SvgPicture.asset(
-                    'assets/veil_logo.svg',
-                    height: 28,
-                  ),
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.primaryAccent.withValues(alpha: 0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    )
-                                  ]
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.notifications_off_outlined, color: AppColors.primaryAccent, size: 20),
-                                    SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        'No new notifications',
-                                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              backgroundColor: Colors.transparent,
-                              elevation: 0,
-                              behavior: SnackBarBehavior.floating,
-                              margin: const EdgeInsets.all(16),
-                            )
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.mutedGrey)),
-                          child: const Icon(Icons.notifications_none, size: 20, color: AppColors.primaryText),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onLongPress: () async {
-                          // Developer tool to reset state and clear the claim nullifier
-                          await UserSecretService.resetSecret();
-                          await DatabaseService().updateMetric('github_prs', '0', 'reclaim');
-                          await _loadMetrics();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Dev: Reset User Secret & PRs. You can claim again.'))
-                            );
-                          }
-                        },
-                        child: const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: AppColors.primaryAccent,
-                          child: Icon(Icons.person, size: 20, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  )
-                ],
-              ),
-              const SizedBox(height: 32),
               
               // Total Balance
               Row(
@@ -169,17 +133,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AppColors.surface.withValues(alpha: 0.6),
-                      AppColors.surface,
+                      AppColors.primaryAccent,
+                      AppColors.primaryAccent.withValues(alpha: 0.8),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(32),
-                  border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.5)),
+                  border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primaryAccent.withValues(alpha: 0.05),
+                      color: AppColors.primaryAccent.withValues(alpha: 0.2),
                       blurRadius: 32,
                       offset: const Offset(0, 16),
                     ),
@@ -194,7 +158,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.all(24.0),
-                          child: CircularProgressIndicator(color: AppColors.primaryAccent),
+                          child: CircularProgressIndicator(color: Colors.white),
                         ),
                       )
                     : Column(
@@ -207,9 +171,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryAccent.withValues(alpha: 0.15),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.3)),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -217,10 +181,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Container(
                                       width: 6,
                                       height: 6,
-                                      decoration: const BoxDecoration(color: AppColors.primaryAccent, shape: BoxShape.circle),
+                                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                                     ),
                                     const SizedBox(width: 8),
-                                    const Text('Multi-Chain', style: TextStyle(color: AppColors.primaryAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    const Text('Multi-Chain', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ),
@@ -232,29 +196,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primaryAccent,
+                                      color: Colors.white,
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
-                                        BoxShadow(color: AppColors.primaryAccent.withValues(alpha: 0.4), blurRadius: 8, offset: const Offset(0, 4))
+                                        BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))
                                       ]
                                     ),
-                                    child: const Text('Connect', style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    child: const Text('Connect', style: TextStyle(color: AppColors.primaryAccent, fontSize: 12, fontWeight: FontWeight.bold)),
                                   ),
                                 )
                               else
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: AppColors.surface,
+                                    color: Colors.white.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: AppColors.mutedGrey),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                                   ),
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.shield_outlined, size: 14, color: AppColors.secondaryText),
+                                      Icon(Icons.shield_outlined, size: 14, color: Colors.white),
                                       SizedBox(width: 6),
-                                      Text('Shielded', style: TextStyle(color: AppColors.secondaryText, fontSize: 12, fontWeight: FontWeight.w600)),
+                                      Text('Shielded', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
                                     ],
                                   ),
                                 )
@@ -278,36 +242,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 32),
 
               // Action Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildActionCard(
-                      context,
-                      title: 'Check Eligibility',
-                      subtitle: 'See which programs you qualify for',
-                      icon: Icons.auto_awesome,
-                      color: AppColors.primaryAccent,
-                      textColor: Colors.white,
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const CheckEligibilityScreen()));
-                      },
-                    ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const CheckEligibilityScreen()));
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryAccent,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.secondaryAccent.withValues(alpha: 0.2),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      )
+                    ]
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildActionCard(
-                      context,
-                      title: 'Generate Proof',
-                      subtitle: 'Prove any condition privately',
-                      icon: Icons.upload_file,
-                      color: AppColors.secondaryAccent,
-                      textColor: Colors.black,
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const GenerateProofScreen()));
-                      },
-                    ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.auto_awesome, color: Colors.black, size: 24),
+                      ),
+                      const SizedBox(width: 20),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Check Eligibility', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: -0.5)),
+                            SizedBox(height: 4),
+                            Text('See which programs you qualify for', style: TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, color: Colors.black, size: 16),
+                    ],
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: 40),
 
@@ -316,7 +290,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Active Programs', style: Theme.of(context).textTheme.titleLarge),
-                  const Text('View all', style: TextStyle(color: AppColors.primaryAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProgramsScreen()));
+                    },
+                    child: const Text('View all', style: TextStyle(color: AppColors.primaryAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -339,7 +318,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Recent Activity', style: Theme.of(context).textTheme.titleLarge),
-                  const Text('View all', style: TextStyle(color: AppColors.primaryAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const TransactionHistoryScreen()));
+                    },
+                    child: const Text('View all', style: TextStyle(color: AppColors.primaryAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -392,6 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 120),
             ],
           ),
         ),
@@ -400,37 +385,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildActionCard(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color color, required Color textColor, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-              child: Icon(icon, color: textColor, size: 20),
-            ),
-            const SizedBox(height: 24),
-            Text(title, style: TextStyle(color: textColor, fontWeight: FontWeight.w700, fontSize: 16)),
-            const SizedBox(height: 8),
-            Text(subtitle, style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 12)),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Icon(Icons.arrow_forward_ios, color: textColor, size: 14),
-            )
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildInnerBalanceContent(String symbol, String amount, String network) {
     return FittedBox(
@@ -443,24 +397,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(
             amount, 
             style: GoogleFonts.spaceGrotesk(
-              textStyle: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: -1.5)
+              textStyle: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: -1.5, color: Colors.white)
             ),
           ),
           const SizedBox(width: 12),
           Text(
             symbol, 
             style: GoogleFonts.spaceGrotesk(
-              textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppColors.secondaryText, fontWeight: FontWeight.w600)
+              textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w600)
             ),
           ),
           const SizedBox(width: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(network, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12, fontWeight: FontWeight.bold)),
+            child: Text(network, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -547,73 +501,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildActivityTile(BuildContext context, String title, String subtitle, String amount, String date, String txHash, IconData icon, Color iconColor) {
     return InkWell(
       onTap: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: AppColors.surface,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-          builder: (context) => Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Transaction Details', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Status', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
-                    Text(title, style: TextStyle(color: iconColor, fontSize: 16, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Program', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
-                    Text(subtitle, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Amount', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
-                    Text(amount, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Date', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
-                    Text(date, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Tx Hash', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
-                    Text(txHash.length > 10 ? '${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}' : txHash, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.secondaryAccent,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Close', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                  ),
-                )
-              ],
-            ),
-          )
-        );
+        TransactionDetailsModal.show(context, {
+          'title': title,
+          'subtitle': subtitle,
+          'amount': amount,
+          'date': date,
+          'tx_hash': txHash,
+          'color_index': iconColor == AppColors.primaryAccent ? 0 : (iconColor == Colors.purpleAccent ? 1 : 2)
+        });
       },
       child: Padding(
         padding: const EdgeInsets.only(bottom: 16.0),

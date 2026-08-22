@@ -1,5 +1,5 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
 import '../theme.dart';
 import '../services/proof_service.dart';
@@ -190,6 +190,7 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
       if (!mounted) return;
 
       if (claimResult.success) {
+        HapticFeedback.heavyImpact();
         setState(() {
           _isGenerating = false;
           _isSubmitted = true;
@@ -362,6 +363,7 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
             const SizedBox(height: 48),
             Text(
               _statusText,
+              textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.secondaryAccent, fontSize: 18, fontWeight: FontWeight.w600),
             ),
           ],
@@ -370,15 +372,17 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const Text(
           'Generate a ZK Proof',
+          textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
         const Text(
           'Create a cryptographic proof of your data without revealing the underlying information.',
+          textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
         ),
         const SizedBox(height: 32),
@@ -405,12 +409,14 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.lock_outline, color: AppColors.primaryAccent),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'Proofs are generated locally. The blockchain only receives the zero-knowledge proof, preserving your privacy.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.primaryAccent, fontSize: 12),
                 ),
               ),
@@ -507,111 +513,27 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
   }
 }
 
-class ZkProcessingAnimation extends StatefulWidget {
+class ZkProcessingAnimation extends StatelessWidget {
   const ZkProcessingAnimation({super.key});
 
   @override
-  State<ZkProcessingAnimation> createState() => _ZkProcessingAnimationState();
-}
-
-class _ZkProcessingAnimationState extends State<ZkProcessingAnimation> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value;
-        final sineValue = math.sin(t * 2 * math.pi); // -1 to 1
-        final normalizedSine = (sineValue + 1) / 2; // 0 to 1
-        final cosineValue = math.cos(t * 2 * math.pi);
-        final normalizedCosine = (cosineValue + 1) / 2;
-        
-        return SizedBox(
-          width: 140,
-          height: 140,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Outer rotating box changing to circle
-              Transform.rotate(
-                angle: t * 2 * math.pi, // 1 full rotation
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: AppColors.primaryAccent.withValues(alpha: 0.3 + normalizedSine * 0.2), 
-                      width: 2
-                    ),
-                    borderRadius: BorderRadius.circular(30 + 30 * normalizedSine),
-                  ),
-                ),
-              ),
-              
-              // Middle rotating shape, opposite direction and scaling
-              Transform.rotate(
-                angle: -t * 4 * math.pi, // 2 full counter rotations
-                child: Transform.scale(
-                  scale: 0.8 + 0.2 * normalizedSine,
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.secondaryAccent.withValues(alpha: 0.1),
-                      border: Border.all(
-                        color: AppColors.secondaryAccent.withValues(alpha: 0.8), 
-                        width: 3
-                      ),
-                      borderRadius: BorderRadius.circular(12 + 28 * normalizedCosine),
-                    ),
-                  ),
-                ),
-              ),
-              
-              // Inner glowing pulse lock
-              Transform.scale(
-                scale: 0.8 + normalizedSine * 0.2,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryAccent.withValues(alpha: 0.5),
-                        blurRadius: 20 * normalizedSine,
-                        spreadRadius: 5 * normalizedSine,
-                      )
-                    ]
-                  ),
-                  child: const Icon(
-                    Icons.lock_outline, 
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Center(
+      child: Lottie.asset(
+        'assets/Network icon.json',
+        width: 200,
+        height: 200,
+        fit: BoxFit.contain,
+        repeat: true,
+        delegates: LottieDelegates(
+          values: [
+            ValueDelegate.color(
+              const ['**'],
+              value: AppColors.secondaryAccent,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

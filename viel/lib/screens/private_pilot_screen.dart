@@ -35,13 +35,13 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
         if (isEligibility || text.toLowerCase().contains('eligib') || text.toLowerCase().contains('qualify')) {
           _messages.add({
             'role': 'bot',
-            'text': 'You appear to meet the eligibility requirements for the Student Support Grant.',
+            'text': 'You appear to meet the eligibility requirements for the Student Support Grant based on your local data.',
             'isEligibility': true
           });
         } else {
           _messages.add({
             'role': 'bot',
-            'text': 'I analyzed your local private data. Based on the current policies, everything seems in order. Is there anything else you would like to check?',
+            'text': 'I analyzed your local private data. Based on the current parameters, everything seems in order. Is there anything else you would like to check?',
             'isEligibility': false
           });
         }
@@ -65,52 +65,53 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('PrivatePilot', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-        centerTitle: true,
+        title: const Text('PrivatePilot', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.secondaryAccent, shape: BoxShape.circle)),
-              const SizedBox(width: 8),
-              const Text('Running privately on device', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-            ],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            onPressed: () {},
           ),
-        ),
+          const SizedBox(width: 8),
+        ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(24.0),
-                children: [
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              children: [
+                if (_messages.isEmpty) ...[
                   const SizedBox(height: 32),
-                  if (_messages.isEmpty) ...[
-                    const Text('What would you like to know?', style: TextStyle(color: Colors.white, fontSize: 32, height: 1.1, letterSpacing: -0.5, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
-                    const SizedBox(height: 32),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      clipBehavior: Clip.none,
-                      child: Row(
-                        children: [
-                          _buildPromptChip('Qualify for programs?', Icons.local_activity_outlined, true),
-                          const SizedBox(width: 12),
-                          _buildPromptChip('Analyze spending', Icons.insights_outlined, false),
-                          const SizedBox(width: 12),
-                          _buildPromptChip('Check eligibility', Icons.verified_user_outlined, true),
-                        ],
-                      ),
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.mutedGrey),
+                          ),
+                          child: const Icon(Icons.auto_awesome, color: AppColors.secondaryAccent, size: 48),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text('PrivatePilot', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                        const SizedBox(height: 8),
+                        const Text('Your on-device AI assistant.', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                        const SizedBox(height: 48),
+                        _buildPromptCard('Check Eligibility', 'See if you qualify for programs without revealing data.', Icons.verified_user_outlined, true),
+                        const SizedBox(height: 16),
+                        _buildPromptCard('Analyze Spending', 'Get local insights based on your transaction history.', Icons.insights_outlined, false),
+                      ],
                     ),
-                  ],
-                  const SizedBox(height: 24),
-                  
+                  ),
+                ] else ...[
                   // Chat Messages
                   ..._messages.map((msg) => Padding(
                     padding: const EdgeInsets.only(bottom: 24.0),
@@ -122,79 +123,71 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                       padding: EdgeInsets.only(bottom: 24.0),
                       child: Row(
                         children: [
-                          CircleAvatar(backgroundColor: AppColors.secondaryAccent, radius: 18, child: Icon(Icons.auto_awesome, size: 20, color: Colors.black)),
+                          CircleAvatar(backgroundColor: AppColors.surface, radius: 16, child: Icon(Icons.auto_awesome, size: 16, color: AppColors.secondaryAccent)),
                           SizedBox(width: 12),
-                          Text('Thinking...', style: TextStyle(color: AppColors.secondaryText, fontStyle: FontStyle.italic)),
+                          Text('Thinking locally...', style: TextStyle(color: AppColors.secondaryText, fontStyle: FontStyle.italic)),
                         ],
                       ),
                     ),
                 ],
-              ),
+              ],
             ),
-            // Chat Input
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.black,
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 20, offset: const Offset(0, -10)),
-                ]
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppColors.mutedGrey, width: 0.5),
-                      ),
-                      child: TextField(
-                        controller: _controller,
-                        style: const TextStyle(color: Colors.white),
-                        onSubmitted: (val) => _sendMessage(val),
-                        decoration: const InputDecoration(
-                          hintText: 'Ask PrivatePilot...',
-                          hintStyle: TextStyle(color: AppColors.secondaryText, fontSize: 14),
-                          border: InputBorder.none,
-                          icon: Icon(Icons.auto_awesome, color: AppColors.secondaryAccent, size: 20),
+          ),
+          // Chat Input
+          Container(
+            padding: EdgeInsets.only(
+              left: 20, 
+              right: 20, 
+              top: 16, 
+              bottom: MediaQuery.of(context).viewInsets.bottom > 0 ? 16 : 120
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.background.withValues(alpha: 0.95),
+              border: Border(top: BorderSide(color: AppColors.mutedGrey.withValues(alpha: 0.3))),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.5)),
+                        ),
+                        child: TextField(
+                          controller: _controller,
+                          style: const TextStyle(color: Colors.white, fontSize: 15),
+                          onSubmitted: (val) => _sendMessage(val),
+                          decoration: InputDecoration(
+                            hintText: 'Ask anything...',
+                            hintStyle: const TextStyle(color: AppColors.secondaryText),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            border: InputBorder.none,
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.arrow_upward, color: AppColors.secondaryAccent),
+                              onPressed: () => _sendMessage(_controller.text),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => _sendMessage(_controller.text),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: const BoxDecoration(
-                        color: AppColors.secondaryAccent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.arrow_upward_rounded, color: Colors.black, size: 24),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.shield_outlined, color: AppColors.secondaryText, size: 14),
+                    SizedBox(width: 8),
+                    Text('Processing runs locally. Data never leaves your device.', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                  ],
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.mutedGrey, width: 0.5)),
-                color: AppColors.surface,
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.shield_outlined, color: AppColors.secondaryText, size: 16),
-                  SizedBox(width: 8),
-                  Text('Private data never leaves your device.', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                ],
-              ),
-            )
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -210,13 +203,11 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
             decoration: BoxDecoration(
               color: AppColors.surface, 
               borderRadius: BorderRadius.circular(24).copyWith(bottomRight: const Radius.circular(4)), 
-              border: Border.all(color: AppColors.mutedGrey, width: 0.5)
+              border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.3))
             ),
             child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 15)),
           ),
         ),
-        const SizedBox(width: 12),
-        const CircleAvatar(backgroundColor: AppColors.surface, radius: 18, child: Icon(Icons.person, size: 20, color: Colors.white)),
       ],
     );
   }
@@ -225,7 +216,7 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const CircleAvatar(backgroundColor: AppColors.secondaryAccent, radius: 18, child: Icon(Icons.auto_awesome, size: 20, color: Colors.black)),
+        const CircleAvatar(backgroundColor: AppColors.surface, radius: 16, child: Icon(Icons.auto_awesome, size: 16, color: AppColors.secondaryAccent)),
         const SizedBox(width: 12),
         Expanded(
           child: Container(
@@ -233,28 +224,52 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(24).copyWith(topLeft: const Radius.circular(4)),
-              border: Border.all(color: AppColors.mutedGrey, width: 0.5),
+              border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(text, style: const TextStyle(color: Colors.white, height: 1.5)),
+                Text(text, style: const TextStyle(color: Colors.white, height: 1.5, fontSize: 15)),
                 if (isEligibility) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.5)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCheckRow('Income criteria met'),
+                        _buildCheckRow('Academic standing verified'),
+                        _buildCheckRow('Enrollment status active'),
+                        const Divider(color: AppColors.mutedGrey, height: 24),
+                        Row(
+                          children: [
+                            const Icon(Icons.verified, color: AppColors.secondaryAccent, size: 20),
+                            const SizedBox(width: 8),
+                            const Text('Eligible for Proof', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  _buildCheckRow('Income'),
-                  _buildCheckRow('Academic score'),
-                  _buildCheckRow('Enrollment'),
-                  const SizedBox(height: 16),
-                  const Text('Eligible', style: TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const GenerateProofScreen()));
                       },
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.white),
-                      child: const Text('Generate Proof →'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryAccent, 
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      ),
+                      child: const Text('Generate Proof →', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   )
                 ]
@@ -266,22 +281,36 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     );
   }
 
-  Widget _buildPromptChip(String text, IconData icon, bool triggersEligibility) {
-    return GestureDetector(
-      onTap: () => _sendMessage(text, isEligibility: triggersEligibility),
+  Widget _buildPromptCard(String title, String subtitle, IconData icon, bool triggersEligibility) {
+    return InkWell(
+      onTap: () => _sendMessage(title, isEligibility: triggersEligibility),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.mutedGrey, width: 0.5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.3)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: AppColors.secondaryAccent),
-            const SizedBox(width: 8),
-            Text(text, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: AppColors.secondaryAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: AppColors.secondaryAccent, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 16),
           ],
         ),
       ),
@@ -293,9 +322,9 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
-          const Icon(Icons.check, color: AppColors.secondaryAccent, size: 16),
+          const Icon(Icons.check_circle, color: AppColors.secondaryAccent, size: 16),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(color: AppColors.secondaryText)),
+          Text(label, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
         ],
       ),
     );

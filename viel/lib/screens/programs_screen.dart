@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'check_eligibility_screen.dart';
@@ -17,10 +18,17 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Programs', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-        centerTitle: true,
+        title: const Text('Discover', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            onPressed: () {},
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -62,62 +70,20 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
               const SizedBox(height: 32),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Text('For You', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                child: Text('All Programs', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
               ),
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: AppColors.primaryAccent.withValues(alpha: 0.2), shape: BoxShape.circle),
-                            child: const Icon(Icons.shopping_bag_outlined, color: AppColors.primaryAccent),
-                          ),
-                          const Spacer(),
-                          const Text('₹2,000 Reward', style: TextStyle(color: AppColors.primaryAccent, fontWeight: FontWeight.bold, fontSize: 14)),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      const Text('PRIVATE CASHBACK', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 8),
-                      const Text('Spending < ₹20,000/month', style: TextStyle(color: AppColors.secondaryText, fontSize: 14)),
-                      const SizedBox(height: 24),
-                      const Text('Your data stays private.', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => const CheckEligibilityScreen()));
-                          },
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.white),
-                          child: const Text('Check Eligibility →'),
-                        ),
-                      )
-                    ],
-                  ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Column(
+                  key: ValueKey<String>(_selectedFilter),
+                  children: availablePrograms
+                      .where((p) => _selectedFilter == 'All' || p.category == _selectedFilter)
+                      .map((program) => _buildSmallProgramCard(context, program))
+                      .toList(),
                 ),
               ),
-              const SizedBox(height: 24),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Text('More Programs', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 16),
-              ...availablePrograms.map((program) => _buildSmallProgramCard(context, program)),
-              const SizedBox(height: 32),
+              const SizedBox(height: 120),
             ],
           ),
         ),
@@ -198,28 +164,50 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
             )
           );
         },
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.mutedGrey),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(program.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text(program.description, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.3)),
               ),
-              const SizedBox(width: 16),
-              Text(program.reward, style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold, fontSize: 14)),
-            ],
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.account_balance_wallet, color: AppColors.primaryAccent, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(program.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.2)),
+                        const SizedBox(height: 4),
+                        Text(program.sponsor, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondaryAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(program.reward, style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

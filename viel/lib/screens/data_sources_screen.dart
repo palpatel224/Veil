@@ -248,6 +248,7 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
               subtitle: _githubPrs != null ? 'Connected: $_githubPrs PRs' : 'Fetch your merged PRs securely.',
               icon: Icons.code,
               isLoading: _isLoadingGitHub,
+              isConnected: _githubPrs != null,
               onTap: _connectGitHub,
               color: const Color(0xFF6E5494),
             ),
@@ -257,6 +258,7 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
               subtitle: _walletBalance != null ? 'Connected: $_walletBalance ETH' : 'Sync wallet balance (Sepolia).',
               icon: Icons.account_balance_wallet,
               isLoading: _isLoadingWallet,
+              isConnected: _walletBalance != null,
               onTap: _connectWallet,
               color: Colors.blueAccent,
             ),
@@ -266,6 +268,7 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
               subtitle: 'Upload digitally signed demographic data.',
               icon: Icons.badge,
               isLoading: _isLoadingGovt,
+              isConnected: false,
               onTap: _mockUploadAadhaar,
               color: Colors.orangeAccent,
             ),
@@ -280,6 +283,7 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
     required String subtitle,
     required IconData icon,
     required bool isLoading,
+    required bool isConnected,
     required VoidCallback onTap,
     required Color color,
   }) {
@@ -293,38 +297,107 @@ class _DataSourcesScreenState extends State<DataSourcesScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.mutedGrey),
         ),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                if (isLoading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryAccent),
+                  )
+                else if (isConnected)
+                  const _PulsingGreenDot()
+                else
+                  const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 14),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                ],
-              ),
-            ),
-            if (isLoading)
-              const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryAccent),
-              )
-            else
-              const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 14),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.lock, color: AppColors.primaryAccent.withValues(alpha: 0.8), size: 14),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Your data never leaves your device. Proofs are generated locally.",
+                    style: TextStyle(color: AppColors.primaryAccent.withValues(alpha: 0.8), fontSize: 11),
+                  ),
+                ),
+              ],
+            )
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PulsingGreenDot extends StatefulWidget {
+  const _PulsingGreenDot();
+
+  @override
+  State<_PulsingGreenDot> createState() => _PulsingGreenDotState();
+}
+
+class _PulsingGreenDotState extends State<_PulsingGreenDot> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.greenAccent.withValues(alpha: 0.5 + 0.5 * _controller.value),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.greenAccent.withValues(alpha: 0.2 + 0.3 * _controller.value),
+                blurRadius: 8 * _controller.value,
+                spreadRadius: 2 * _controller.value,
+              )
+            ],
+          ),
+        );
+      },
     );
   }
 }

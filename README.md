@@ -40,11 +40,9 @@ flowchart TB
         ENCLAVE -->|Normalized Inputs| PROVER["Headless InApp Localhost Server"]
         
         subgraph WASM_Engine["WASM Runtime assets and prover"]
-            EZKL["EZKL Halo2 WASM Engine"]
-            NOIR["Noir Circuit Barretenberg"]
+            EZKL["EZKL Halo2 WASM Engine\n(network.ezkl + pk.key + kzg.srs)"]
         end
         PROVER --> EZKL
-        PROVER --> NOIR
         EZKL -->|Generates| PROOF["ZK Proof 512-byte SNARK and Public Inputs"]
         SECRET -->|Derive Nullifier| NULLIFIER["Nullifier Hash"]
     end
@@ -164,10 +162,6 @@ veil/
 │   ├── src/index.js            # EZKL engine & Reclaim SDK bridge
 │   ├── webpack.config.js       # Production bundler for Flutter assets
 │   └── package.json
-│
-├── veil_circuits/              # Noir circuits
-│   ├── src/main.nr             # Barretenberg circuit for multi-variable rules
-│   └── Nargo.toml
 │
 └── veil/                       # Flutter mobile client
     ├── lib/

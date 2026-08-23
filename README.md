@@ -58,7 +58,6 @@ flowchart TB
     subgraph Layer5["5. Reward Settlement"]
         PAYOUT -->|Native ETH or ARC| USER_ETH["Recipient Public Address"]
         PAYOUT -->|ERC-20 Transfer| USER_USDC["USDC Wallet"]
-        PAYOUT -.->|Shielded Relay| RAILGUN["Railgun 0zk Address"]
     end
 ```
 

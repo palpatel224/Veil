@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../services/llm_service.dart';
+import '../services/wallet_service.dart';
+import '../services/database_service.dart';
+import '../models/program.dart';
 import 'generate_proof_screen.dart';
 
 class PrivatePilotScreen extends StatefulWidget {
@@ -12,11 +16,18 @@ class PrivatePilotScreen extends StatefulWidget {
 class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final LlmService _llmService = LlmService();
   
   final List<Map<String, dynamic>> _messages = [];
   bool _isTyping = false;
 
-  void _sendMessage(String text, {bool isEligibility = false}) {
+  @override
+  void initState() {
+    super.initState();
+    _llmService.init();
+  }
+
+  Future<void> _sendMessage(String text, {bool isEligibility = false}) async {
     if (text.trim().isEmpty) return;
     
     setState(() {
@@ -27,27 +38,149 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     
     _scrollToBottom();
 
-    // Mock network/computation delay
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      setState(() {
-        _isTyping = false;
-        if (isEligibility || text.toLowerCase().contains('eligib') || text.toLowerCase().contains('qualify')) {
-          _messages.add({
-            'role': 'bot',
-            'text': 'You appear to meet the eligibility requirements for the Student Support Grant based on your local data.',
-            'isEligibility': true
-          });
+
+
+    // Process intent via LLM
+    final intentData = await _llmService.parseIntent(text);
+    if (!mounted) return;
+
+    final intent = intentData['intent'];
+    String? botText;
+    bool isEligibilityIntent = false;
+    Program? targetProgram;
+    List<Map<String, dynamic>> criteria = [];
+    bool isEligible = true;
+
+    if (intent == 'CHECK_ELIGIBILITY' || intent == 'GENERATE_PROOF') {
+      final targetStrRaw = intentData['target']?.toString().toLowerCase().replaceAll('_', ' ') ?? '';
+      final targetWords = targetStrRaw.split(' ').where((w) => w.length > 2).toList();
+      
+      // Find the closest program match
+      try {
+        targetProgram = availablePrograms.firstWhere(
+          (p) {
+            final pName = p.name.toLowerCase();
+            final pSponsor = p.sponsor.toLowerCase();
+            if (targetWords.isEmpty) return false;
+            return targetWords.any((word) => pName.contains(word) || pSponsor.contains(word));
+          }
+        );
+      } catch (e) {
+        // Fallback to first if no match
+        targetProgram = availablePrograms.isNotEmpty ? availablePrograms.first : null;
+      }
+      
+      isEligibilityIntent = true;
+      
+      if (targetProgram != null) {
+        // Calculate eligibility dynamically
+        final db = DatabaseService();
+        double userBalance = 0.0;
+        final address = await db.getMetric('recipient_wallet');
+        if (address != null && address.isNotEmpty) {
+          try {
+             final balances = await WalletService.fetchBalances(address);
+             // Rough total balance equivalent in USD for evaluation
+             userBalance = (balances['ETH'] ?? 0) * 3000 + (balances['USDC'] ?? 0) + (balances['ARC'] ?? 0);
+          } catch (e) {}
         } else {
-          _messages.add({
-            'role': 'bot',
-            'text': 'I analyzed your local private data. Based on the current parameters, everything seems in order. Is there anything else you would like to check?',
-            'isEligibility': false
-          });
+          final balStr = await db.getMetric('total_balance') ?? '0';
+          userBalance = double.tryParse(balStr) ?? 0.0;
         }
+
+        int userPrs = 0;
+        final prsStr = await db.getMetric('github_prs') ?? '0';
+        userPrs = int.tryParse(prsStr) ?? 0;
+
+        if (targetProgram.requiredMinBalance > 0) {
+          bool met = userBalance >= targetProgram.requiredMinBalance;
+          if (!met) isEligible = false;
+          criteria.add({'label': 'Balance >= \$${targetProgram.requiredMinBalance}', 'met': met});
+        }
+        if (targetProgram.requiredMinPrs > 0) {
+          bool met = userPrs >= targetProgram.requiredMinPrs;
+          if (!met) isEligible = false;
+          criteria.add({'label': 'GitHub PRs >= ${targetProgram.requiredMinPrs}', 'met': met});
+        }
+        if (criteria.isEmpty) {
+          criteria.add({'label': 'No special requirements', 'met': true});
+        }
+      }
+
+      if (intent == 'CHECK_ELIGIBILITY') {
+        if (isEligible) {
+          botText = 'I analyzed your local private data for ${targetProgram?.name ?? 'the program'}. You appear to meet the eligibility requirements.';
+        } else {
+          botText = 'I analyzed your local private data for ${targetProgram?.name ?? 'the program'}. You do not currently meet all the requirements.';
+        }
+      } else {
+        if (isEligible) {
+           botText = 'Ready to generate a zero-knowledge proof for ${targetProgram?.name ?? 'the program'}.';
+        } else {
+           botText = 'You do not meet the requirements to generate a proof for ${targetProgram?.name ?? 'the program'}.';
+        }
+      }
+    } else if (intent == 'FIND_ELIGIBLE_PROGRAMS') {
+      final db = DatabaseService();
+      double userBalance = 0.0;
+      final address = await db.getMetric('recipient_wallet');
+      if (address != null && address.isNotEmpty) {
+        try {
+           final balances = await WalletService.fetchBalances(address);
+           userBalance = (balances['ETH'] ?? 0) * 3000 + (balances['USDC'] ?? 0) + (balances['ARC'] ?? 0);
+        } catch (e) {}
+      } else {
+        final balStr = await db.getMetric('total_balance') ?? '0';
+        userBalance = double.tryParse(balStr) ?? 0.0;
+      }
+
+      int userPrs = 0;
+      final prsStr = await db.getMetric('github_prs') ?? '0';
+      userPrs = int.tryParse(prsStr) ?? 0;
+
+      List<Program> eligible = [];
+      for (var p in availablePrograms) {
+        if ((p.requiredMinBalance == 0 || userBalance >= p.requiredMinBalance) && 
+            (p.requiredMinPrs == 0 || userPrs >= p.requiredMinPrs)) {
+          eligible.add(p);
+        }
+      }
+
+      if (eligible.isEmpty) {
+        botText = 'I analyzed your local private data, but you do not currently meet the requirements for any available programs.';
+      } else {
+        botText = 'I analyzed your local private data. You are eligible for:\n\n' + eligible.map((p) => '• ${p.name}').join('\n');
+      }
+    } else if (intent == 'CHECK_BALANCE') {
+      botText = 'I checked your shielded wallet. Could not retrieve balance.';
+      try {
+        final db = DatabaseService();
+        final address = await db.getMetric('recipient_wallet');
+        if (address != null && address.isNotEmpty) {
+          final balances = await WalletService.fetchBalances(address);
+          botText = 'I checked your shielded wallet.\n\nBalances:\nETH: ${balances['ETH']?.toStringAsFixed(4) ?? '0'}\nUSDC: ${balances['USDC']?.toStringAsFixed(2) ?? '0'}\nARC: ${balances['ARC']?.toStringAsFixed(2) ?? '0'}';
+        }
+      } catch (e) {
+        botText = 'I checked your shielded wallet, but encountered an error: $e';
+      }
+    } else {
+      botText = intentData['message'] ?? 'I processed your request locally.';
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isTyping = false;
+      _messages.add({
+        'role': 'bot',
+        'text': botText,
+        'isEligibility': isEligibilityIntent,
+        'program': targetProgram,
+        'criteria': criteria,
+        'isEligible': isEligible,
       });
-      _scrollToBottom();
     });
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -105,9 +238,11 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                         const SizedBox(height: 8),
                         const Text('Your on-device AI assistant.', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
                         const SizedBox(height: 48),
-                        _buildPromptCard('Check Eligibility', 'See if you qualify for programs without revealing data.', Icons.verified_user_outlined, true),
+                        _buildPromptCard('Check eligibility for Web3 Starter Grant', 'Check eligibility for a specific program.', Icons.verified_user_outlined, true),
                         const SizedBox(height: 16),
-                        _buildPromptCard('Analyze Spending', 'Get local insights based on your transaction history.', Icons.insights_outlined, false),
+                        _buildPromptCard('Find Eligible Programs', 'Discover which grants you qualify for based on local data.', Icons.insights_outlined, false),
+                        const SizedBox(height: 16),
+                        _buildPromptCard('Check Shielded Balance', 'View your private wallet balances securely.', Icons.account_balance_wallet_outlined, false),
                       ],
                     ),
                   ),
@@ -115,7 +250,15 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                   // Chat Messages
                   ..._messages.map((msg) => Padding(
                     padding: const EdgeInsets.only(bottom: 24.0),
-                    child: msg['role'] == 'user' ? _buildUserMessage(msg['text']) : _buildBotMessage(msg['text'], msg['isEligibility'] ?? false),
+                    child: msg['role'] == 'user' 
+                        ? _buildUserMessage(msg['text']) 
+                        : _buildBotMessage(
+                            msg['text'], 
+                            msg['isEligibility'] ?? false, 
+                            program: msg['program'],
+                            criteria: msg['criteria'],
+                            isEligible: msg['isEligible'] ?? false,
+                          ),
                   )),
                   
                   if (_isTyping)
@@ -212,7 +355,7 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     );
   }
 
-  Widget _buildBotMessage(String text, bool isEligibility) {
+  Widget _buildBotMessage(String text, bool isEligibility, {Program? program, List<dynamic>? criteria, bool isEligible = false}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -242,36 +385,39 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildCheckRow('Income criteria met'),
-                        _buildCheckRow('Academic standing verified'),
-                        _buildCheckRow('Enrollment status active'),
+                        if (criteria != null)
+                          ...criteria.map((c) => _buildCheckRow(c['label'] as String, isMet: c['met'] as bool)),
+                        if (criteria == null)
+                          _buildCheckRow('Checked eligibility locally', isMet: true),
+                        
                         const Divider(color: AppColors.mutedGrey, height: 24),
                         Row(
                           children: [
-                            const Icon(Icons.verified, color: AppColors.secondaryAccent, size: 20),
+                            Icon(isEligible ? Icons.verified : Icons.cancel, color: isEligible ? AppColors.secondaryAccent : Colors.redAccent, size: 20),
                             const SizedBox(width: 8),
-                            const Text('Eligible for Proof', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text(isEligible ? 'Eligible for Proof' : 'Not Eligible', style: TextStyle(color: isEligible ? Colors.white : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 15)),
                           ],
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const GenerateProofScreen()));
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryAccent, 
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  if (isEligible)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => GenerateProofScreen(program: program)));
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryAccent, 
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        ),
+                        child: const Text('Generate Proof →', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                      child: const Text('Generate Proof →', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  )
+                    )
                 ]
               ],
             ),
@@ -317,12 +463,12 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     );
   }
 
-  Widget _buildCheckRow(String label) {
+  Widget _buildCheckRow(String label, {bool isMet = true}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: AppColors.secondaryAccent, size: 16),
+          Icon(isMet ? Icons.check_circle : Icons.cancel, color: isMet ? AppColors.secondaryAccent : Colors.redAccent, size: 16),
           const SizedBox(width: 8),
           Text(label, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
         ],

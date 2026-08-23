@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'screens/main_screen.dart';
 
-void main() {
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print("Could not load .env file: $e");
+  }
   runApp(const VielApp());
 }
 

@@ -20,3 +20,8 @@ contracts/broadcast/
 # Local markdown files
 hackathon_submission.md
 project_state.md
+
+# Environment variables
+.env
+.env.*
+!.env.example

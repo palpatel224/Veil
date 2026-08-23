@@ -32,16 +32,7 @@ const List<Program> availablePrograms = [
     reward: "\$10 USDC",
     category: "Grants",
   ),
-  Program(
-    id: 1,
-    name: "Open Source Champion",
-    sponsor: "Gitcoin",
-    description: "Reward for major open source contributors. Merged >= 20 PRs.",
-    requiredMinBalance: 0.0,
-    requiredMinPrs: 20,
-    reward: "\$200 USDC",
-    category: "Scholarships",
-  ),
+
   Program(
     id: 2,
     name: "DeFi Early Adopter",

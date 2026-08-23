@@ -22,43 +22,43 @@ The system is split into five layers across the client device, the proving runti
 
 ```mermaid
 flowchart TB
-    subgraph Layer1["1. Local Data Ingestion & ZK-TLS"]
-        GH["GitHub PRs & Commits"] -->|zk-TLS / API| REC["Reclaim Protocol SDK"]
-        RPC["On-Chain RPCs (Sepolia/ARC)"] -->|Balance Sync| WAL["Web3 RPC Client"]
-        GOV["Aadhaar / ID Signed XML"] -->|Local Parse| DOC["Local Document Parser"]
+    subgraph Layer1["1. Local Data Ingestion and ZK-TLS"]
+        GH["GitHub PRs and Commits"] -->|zk-TLS or API| REC["Reclaim Protocol SDK"]
+        RPC["On-Chain RPCs Sepolia and ARC"] -->|Balance Sync| WAL["Web3 RPC Client"]
+        GOV["Aadhaar and ID Signed XML"] -->|Local Parse| DOC["Local Document Parser"]
     end
 
     subgraph Layer2["2. Client Secure Storage"]
         REC --> ENCLAVE["Encrypted SQLite Database"]
         WAL --> ENCLAVE
         DOC --> ENCLAVE
-        SECRET["Device Secret Seed (flutter_secure_storage)"]
+        SECRET["Device Secret Seed in Secure Storage"]
     end
 
     subgraph Layer3["3. On-Device Prover Engine"]
-        PILOT["PrivatePilot (Gemini Intent Router)"] -.->|Route Request| ENCLAVE
+        PILOT["PrivatePilot Gemini Intent Router"] -.->|Route Request| ENCLAVE
         ENCLAVE -->|Normalized Inputs| PROVER["Headless InApp Localhost Server"]
         
-        subgraph WASM_Engine["WASM Runtime (assets/prover)"]
-            EZKL["EZKL Halo2 WASM Engine\n(network.ezkl + pk.key + kzg.srs)"]
-            NOIR["Noir Circuit (Barretenberg)"]
+        subgraph WASM_Engine["WASM Runtime assets and prover"]
+            EZKL["EZKL Halo2 WASM Engine"]
+            NOIR["Noir Circuit Barretenberg"]
         end
         PROVER --> EZKL
         PROVER --> NOIR
-        EZKL -->|Generates| PROOF["ZK Proof (512-byte SNARK)\n+ Public Instances"]
-        SECRET -->|SHA256(secret + program_id)| NULLIFIER["Nullifier Hash"]
+        EZKL -->|Generates| PROOF["ZK Proof 512-byte SNARK and Public Inputs"]
+        SECRET -->|Derive Nullifier| NULLIFIER["Nullifier Hash"]
     end
 
     subgraph Layer4["4. EVM Smart Contracts"]
-        PROOF -->|claimReward()| PAYOUT["PayoutController.sol"]
+        PROOF -->|claimReward Call| PAYOUT["PayoutController.sol"]
         NULLIFIER --> PAYOUT
         
-        PAYOUT -->|1. Verify Proof| VERIFIER["Halo2Verifier.sol"]
-        PAYOUT -->|2. Prevent Double Claim| NULL_REG["NullifierRegistry.sol"]
+        PAYOUT -->|Verify Proof| VERIFIER["Halo2Verifier.sol"]
+        PAYOUT -->|Prevent Double Claim| NULL_REG["NullifierRegistry.sol"]
     end
 
     subgraph Layer5["5. Reward Settlement"]
-        PAYOUT -->|Native ETH / ARC| USER_ETH["Recipient Public Address"]
+        PAYOUT -->|Native ETH or ARC| USER_ETH["Recipient Public Address"]
         PAYOUT -->|ERC-20 Transfer| USER_USDC["USDC Wallet"]
         PAYOUT -.->|Shielded Relay| RAILGUN["Railgun 0zk Address"]
     end
@@ -73,37 +73,37 @@ sequenceDiagram
     autonumber
     actor User as User (Flutter Client)
     participant Pilot as PrivatePilot (LLM Router)
-    participant Storage as Local DB / Enclave
+    participant Storage as Local DB (Secure Enclave)
     participant Prover as EZKL WASM Engine
     participant Payout as PayoutController.sol
     participant NullReg as NullifierRegistry.sol
     participant Verifier as Halo2Verifier.sol
 
-    User->>Pilot: "Check eligibility for Developer Starter Grant"
-    Note over Pilot: Blind intent routing (never receives private data)
-    Pilot-->>User: Intent: CHECK_ELIGIBILITY(programId = 10)
+    User->>Pilot: Check eligibility for Developer Starter Grant
+    Note over Pilot: Blind intent routing without reading private data
+    Pilot-->>User: Return intent: CHECK_ELIGIBILITY
     
     User->>Storage: Read local PR count and balance
-    Storage-->>User: Extracted metrics (e.g., 4 PRs, $1,500)
+    Storage-->>User: Return user metrics
     
-    User->>Prover: Pass normalized vector [Spend, AvgTx, PRs, Income]
-    Note over Prover: Generates witness & Halo2 proof in WebAssembly
-    Prover-->>User: Proof hex string + public inputs
+    User->>Prover: Pass normalized feature vector
+    Note over Prover: Generates witness and Halo2 proof in WebAssembly
+    Prover-->>User: Return proof hex and public inputs
     
-    User->>User: Compute Nullifier = SHA256(user_secret + programId)
+    User->>User: Compute Nullifier = SHA256(user_secret + program_id)
     
-    User->>Payout: claimReward(programId, proof, publicInputs, nullifierHash, recipient)
+    User->>Payout: Submit claimReward transaction
     
-    Payout->>NullReg: isSpent(nullifierHash)
+    Payout->>NullReg: Check isSpent(nullifierHash)
     alt Nullifier already used
-        NullReg-->>Payout: true
-        Payout-->>User: Revert (AlreadyClaimed)
+        NullReg-->>Payout: Already spent
+        Payout-->>User: Revert transaction (AlreadyClaimed)
     else Nullifier unused
-        NullReg-->>Payout: false
+        NullReg-->>Payout: Not spent
         Payout->>Verifier: verifyProof(proof, publicInputs)
-        Verifier-->>Payout: Valid
+        Verifier-->>Payout: Proof valid
         Payout->>NullReg: markSpent(nullifierHash)
-        Payout->>User: Execute reward transfer (ETH / USDC / ARC)
+        Payout->>User: Release reward payment
     end
 ```
 

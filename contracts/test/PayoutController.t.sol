@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../src/SimulatedVerifier.sol";
 import "../src/NullifierRegistry.sol";
 import "../src/PayoutController.sol";
+import "../src/IRailgunSmartWallet.sol";
 
 /**
  * @title PayoutControllerTest
@@ -34,6 +35,10 @@ contract PayoutControllerTest is Test {
 
     // Nullifier: SHA256(user_secret + program_id)
     bytes32 nullifierHash;
+
+    // These tests only exercise native-ETH programs, so claimReward's shieldRequest
+    // param (only consumed for ERC20/shielded programs) is left zero-valued.
+    ShieldRequest emptyShieldRequest;
 
     function setUp() public {
         vm.startPrank(owner);
@@ -87,7 +92,8 @@ contract PayoutControllerTest is Test {
             validProof,
             validPublicInputs,
             nullifierHash,
-            user
+            user,
+            emptyShieldRequest
         );
 
         // User received the ETH
@@ -106,7 +112,7 @@ contract PayoutControllerTest is Test {
         // First claim succeeds
         vm.prank(user);
         controller.claimReward(
-            PROGRAM_ID, validProof, validPublicInputs, nullifierHash, user
+            PROGRAM_ID, validProof, validPublicInputs, nullifierHash, user, emptyShieldRequest
         );
 
         // Refund the program so funds aren't the issue
@@ -117,7 +123,7 @@ contract PayoutControllerTest is Test {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(PayoutController.AlreadyClaimed.selector, nullifierHash));
         controller.claimReward(
-            PROGRAM_ID, validProof, validPublicInputs, nullifierHash, user
+            PROGRAM_ID, validProof, validPublicInputs, nullifierHash, user, emptyShieldRequest
         );
     }
 
@@ -132,7 +138,7 @@ contract PayoutControllerTest is Test {
         vm.prank(user);
         vm.expectRevert("SimulatedVerifier: zero commitment");
         controller.claimReward(
-            PROGRAM_ID, badProof, validPublicInputs, nullifierHash, user
+            PROGRAM_ID, badProof, validPublicInputs, nullifierHash, user, emptyShieldRequest
         );
     }
 
@@ -142,7 +148,7 @@ contract PayoutControllerTest is Test {
         vm.prank(user);
         vm.expectRevert("SimulatedVerifier: proof too short");
         controller.claimReward(
-            PROGRAM_ID, shortProof, validPublicInputs, nullifierHash, user
+            PROGRAM_ID, shortProof, validPublicInputs, nullifierHash, user, emptyShieldRequest
         );
     }
 
@@ -153,7 +159,7 @@ contract PayoutControllerTest is Test {
         vm.prank(user);
         vm.expectRevert("SimulatedVerifier: need 2 public inputs");
         controller.claimReward(
-            PROGRAM_ID, validProof, badInputs, nullifierHash, user
+            PROGRAM_ID, validProof, badInputs, nullifierHash, user, emptyShieldRequest
         );
     }
 
@@ -167,7 +173,7 @@ contract PayoutControllerTest is Test {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(PayoutController.NoRewardForProgram.selector, unknownProgram));
         controller.claimReward(
-            unknownProgram, validProof, validPublicInputs, nullifierHash, user
+            unknownProgram, validProof, validPublicInputs, nullifierHash, user, emptyShieldRequest
         );
     }
 

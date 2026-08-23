@@ -19,6 +19,7 @@ class GenerateProofScreen extends StatefulWidget {
 class _GenerateProofScreenState extends State<GenerateProofScreen> {
   bool _isGenerating = false;
   bool _isSubmitted = false;
+  bool _isShielded = false;
   String _statusText = '';
   String? _txHash;
   String? _explorerUrl;
@@ -26,8 +27,7 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
 
   // ── Private key that pays gas (deployer key for demo).
   // In production: replace with WalletConnect session signing.
-  static const String _demoPrivateKey =
-      '0xc0fd611ae0d8e3cd1a4f0da76ce8c8b36689f9791f883f1aea57757fbd4017c8';
+  static const String _demoPrivateKey = const String.fromEnvironment('PRIVATE_KEY', defaultValue: '0xc0fd611ae0d8e3cd1a4f0da76ce8c8b36689f9791f883f1aea57757fbd4017c8');
 
   // Unique per-device secret for nullifier derivation — loaded from secure storage.
   // Generated once on first launch, persisted via flutter_secure_storage.
@@ -52,8 +52,9 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
       setState(() {
         _userSecret = results[0] as String;
         final wallet = results[1];
+        // We do not set _recipientAddress here immediately, we will fetch based on program type in _generateProof
         if (wallet != null && wallet.isNotEmpty) {
-          _recipientAddress = wallet;
+          _recipientAddress = wallet; // Default fallback
         }
       });
     }
@@ -61,33 +62,45 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
 
   /// Shows a dialog asking the user for their Ethereum address.
   /// Saves it to DB so it's only asked once.
-  Future<String?> _promptForWalletAddress() async {
+  Future<String?> _promptForWalletAddress(bool isShielded) async {
     final controller = TextEditingController();
     return showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Enter Your Wallet Address',
-            style: TextStyle(color: Colors.white, fontSize: 18)),
+        title: const Text(
+          'Enter Your Wallet Address',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Enter the Ethereum Sepolia address that should receive the reward.',
-              style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+            Text(
+              isShielded 
+                ? 'Enter your RAILGUN 0zk address to receive the shielded reward.'
+                : 'Enter the Ethereum Sepolia address that should receive the reward.',
+              style: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
-              style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontFamily: 'monospace',
+              ),
               decoration: InputDecoration(
-                hintText: '0x...',
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                hintText: isShielded ? '0zk...' : '0x...',
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.3),
+                ),
                 filled: true,
                 fillColor: AppColors.background,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(color: AppColors.mutedGrey),
@@ -99,19 +112,38 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, null),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.secondaryText),
+            ),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryAccent),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.secondaryAccent,
+            ),
             onPressed: () async {
               final addr = controller.text.trim();
-              if (addr.startsWith('0x') && addr.length == 42) {
+              final isValid = isShielded 
+                  ? (addr.startsWith('0zk') && addr.length > 50) 
+                  : (addr.startsWith('0x') && addr.length == 42);
+
+              if (isValid) {
                 // Save to DB for future sessions
-                await DatabaseService().updateMetric('recipient_wallet', addr, 'user');
+                await DatabaseService().updateMetric(
+                  isShielded ? 'recipient_0zk' : 'recipient_wallet',
+                  addr,
+                  'user',
+                );
                 if (ctx.mounted) Navigator.pop(ctx, addr);
               } else {
                 ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Invalid address — must start with 0x and be 42 chars')),
+                  SnackBar(
+                    content: Text(
+                      isShielded 
+                        ? 'Invalid address — must start with 0zk'
+                        : 'Invalid address — must start with 0x and be 42 chars',
+                    ),
+                  ),
                 );
               }
             },
@@ -126,18 +158,24 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
     // ── Guard: ensure user secret is loaded (async init) ────────────────────
     if (_userSecret.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Initializing secure storage, please try again.')),
+        const SnackBar(
+          content: Text('Initializing secure storage, please try again.'),
+        ),
       );
       return;
     }
 
     // ── Ensure we have a recipient address before starting ───────────────────
-    String? recipient = _recipientAddress;
-    if (recipient == null || recipient.isEmpty) {
-      recipient = await _promptForWalletAddress();
+    final isShieldedProgram = widget.program?.reward.contains('USDC') ?? false;
+    
+    // Try to load correct cached wallet
+    String? recipient = await DatabaseService().getMetric(isShieldedProgram ? 'recipient_0zk' : 'recipient_wallet');
+    
+    if (recipient == null || recipient.isEmpty || (isShieldedProgram && !recipient.startsWith('0zk')) || (!isShieldedProgram && !recipient.startsWith('0x'))) {
+      recipient = await _promptForWalletAddress(isShieldedProgram);
       if (recipient == null) return; // user cancelled
-      setState(() => _recipientAddress = recipient);
     }
+    setState(() => _recipientAddress = recipient);
 
     // Start loading state AFTER we have the address
     setState(() {
@@ -148,7 +186,9 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
 
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
-    setState(() => _statusText = 'Verifying signature & generating Noir Proof...');
+    setState(
+      () => _statusText = 'Verifying signature & generating Noir Proof...',
+    );
 
     try {
       if (widget.program == null) throw Exception('No program selected');
@@ -173,7 +213,10 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
       }
 
       // ── Step 2: Submit proof to blockchain ───────────────────────────────
-      setState(() => _statusText = 'Proof generated! Submitting to Ethereum Sepolia...');
+      setState(
+        () =>
+            _statusText = 'Proof generated! Submitting to Ethereum Sepolia...',
+      );
 
       final claimResult = await BlockchainService.submitProof(
         programId: widget.program!.id + 1, // on-chain IDs are 1-indexed
@@ -194,6 +237,7 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
         setState(() {
           _isGenerating = false;
           _isSubmitted = true;
+          _isShielded = claimResult.isShielded;
           _txHash = claimResult.txHash;
           _explorerUrl = claimResult.explorerUrl;
         });
@@ -214,13 +258,16 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Generate Proof', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20)),
-        automaticallyImplyLeading: !_isGenerating, // Prevent backing out during generation
+        title: const Text(
+          'Generate Proof',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+        ),
+        automaticallyImplyLeading:
+            !_isGenerating, // Prevent backing out during generation
       ),
       body: SafeArea(
         child: Padding(
@@ -240,15 +287,23 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
           children: [
             const Icon(Icons.error_outline, color: Colors.redAccent, size: 72),
             const SizedBox(height: 24),
-            const Text('Submission Failed',
-                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+            const Text(
+              'Submission Failed',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.redAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.4),
+                ),
               ),
               child: Text(
                 _errorText!,
@@ -257,7 +312,7 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             if (_txHash != null) ...[
               _buildTransactionCard(),
               const SizedBox(height: 16),
@@ -265,9 +320,9 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
               OutlinedButton.icon(
                 onPressed: _explorerUrl != null
                     ? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(_explorerUrl!)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(_explorerUrl!)));
                       }
                     : null,
                 icon: const Icon(Icons.open_in_new, size: 16),
@@ -286,8 +341,13 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
                 _txHash = null;
                 _explorerUrl = null;
               }),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.surface),
-              child: const Text('Try Again', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.surface,
+              ),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -300,15 +360,30 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle, color: AppColors.secondaryAccent, size: 80),
+            const Icon(
+              Icons.check_circle,
+              color: AppColors.secondaryAccent,
+              size: 80,
+            ),
             const SizedBox(height: 24),
-            const Text('Proof Verified On-Chain!',
-                style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+            Text(
+              _isShielded ? 'Reward Shielded!' : 'Proof Verified On-Chain!',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
-              'Your ZK proof was accepted and\n${widget.program?.reward ?? 'your'} reward has been sent.',
+              _isShielded
+                  ? 'Your ZK proof was accepted and\n${widget.program?.reward ?? 'your'} reward was shielded into a private RAILGUN balance — no public wallet ever receives it.'
+                  : 'Your ZK proof was accepted and\n${widget.program?.reward ?? 'your'} reward has been sent.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.secondaryText, fontSize: 15),
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 15,
+              ),
             ),
             const SizedBox(height: 32),
 
@@ -322,16 +397,18 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
                 onPressed: _explorerUrl != null
                     ? () {
                         // url_launcher would open this — for now show the URL
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(_explorerUrl!)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(_explorerUrl!)));
                       }
                     : null,
                 icon: const Icon(Icons.open_in_new, size: 16),
                 label: const Text('View on Etherscan'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.secondaryAccent,
-                  side: BorderSide(color: AppColors.secondaryAccent.withValues(alpha: 0.5)),
+                  side: BorderSide(
+                    color: AppColors.secondaryAccent.withValues(alpha: 0.5),
+                  ),
                 ),
               ),
             ],
@@ -344,9 +421,16 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
                   backgroundColor: AppColors.secondaryAccent,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-                child: const Text('Back to Dashboard',
-                    style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                onPressed: () =>
+                    Navigator.popUntil(context, (route) => route.isFirst),
+                child: const Text(
+                  'Back to Dashboard',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           ],
@@ -364,7 +448,11 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
             Text(
               _statusText,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.secondaryAccent, fontSize: 18, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: AppColors.secondaryAccent,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -377,7 +465,11 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
         const Text(
           'Generate a ZK Proof',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         const SizedBox(height: 8),
         const Text(
@@ -386,22 +478,31 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
           style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
         ),
         const SizedBox(height: 32),
-        
+
         if (widget.program == null)
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: Colors.redAccent.withValues(alpha: 0.5),
+              ),
             ),
-            child: const Text('No program selected. Please go back to Check Eligibility.', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'No program selected. Please go back to Check Eligibility.',
+              style: TextStyle(color: Colors.white),
+            ),
           )
         else
-          _buildProofOption(widget.program!.name, widget.program!.description, Icons.verified),
-        
+          _buildProofOption(
+            widget.program!.name,
+            widget.program!.description,
+            Icons.verified,
+          ),
+
         const Spacer(),
-        
+
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -417,7 +518,10 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
                 child: Text(
                   'Proofs are generated locally. The blockchain only receives the zero-knowledge proof, preserving your privacy.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.primaryAccent, fontSize: 12),
+                  style: TextStyle(
+                    color: AppColors.primaryAccent,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -432,9 +536,16 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
               backgroundColor: AppColors.secondaryAccent,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            child: const Text('Generate & Submit', style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Generate & Submit',
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-        )
+        ),
       ],
     );
   }
@@ -451,7 +562,10 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.primaryAccent.withValues(alpha: 0.2), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: AppColors.primaryAccent.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
             child: Icon(icon, color: AppColors.primaryAccent),
           ),
           const SizedBox(width: 16),
@@ -459,30 +573,54 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(condition, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                Text(
+                  condition,
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 14),
+          const Icon(
+            Icons.arrow_forward_ios,
+            color: AppColors.secondaryText,
+            size: 14,
+          ),
         ],
       ),
     );
   }
+
   Widget _buildTransactionCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _isSubmitted ? AppColors.secondaryAccent.withValues(alpha: 0.4) : Colors.redAccent.withValues(alpha: 0.4)),
+        border: Border.all(
+          color: _isSubmitted
+              ? AppColors.secondaryAccent.withValues(alpha: 0.4)
+              : Colors.redAccent.withValues(alpha: 0.4),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Transaction Hash',
-              style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+          const Text(
+            'Transaction Hash',
+            style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -490,14 +628,19 @@ class _GenerateProofScreenState extends State<GenerateProofScreen> {
                 child: Text(
                   _txHash!,
                   style: const TextStyle(
-                      color: AppColors.primaryAccent,
-                      fontSize: 12,
-                      fontFamily: 'monospace'),
+                    color: AppColors.primaryAccent,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.copy, color: AppColors.secondaryText, size: 18),
+                icon: const Icon(
+                  Icons.copy,
+                  color: AppColors.secondaryText,
+                  size: 18,
+                ),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: _txHash!));
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -527,10 +670,7 @@ class ZkProcessingAnimation extends StatelessWidget {
         repeat: true,
         delegates: LottieDelegates(
           values: [
-            ValueDelegate.color(
-              const ['**'],
-              value: AppColors.secondaryAccent,
-            ),
+            ValueDelegate.color(const ['**'], value: AppColors.secondaryAccent),
           ],
         ),
       ),

@@ -54,10 +54,16 @@ contract Deploy is Script {
         // 4. Wire the registry to the controller
         nullifierRegistry.setController(address(controller));
 
+        // Set real Railgun Sepolia Proxy
+        controller.setRailgunSmartWallet(0xecfcf3b4ec647c4ca6d49108b311b7a7c9543fea);
+
         // Fund the 3 launch programs (0.001 ETH each = 0.003 ETH total)
         // controller.depositReward{value: 0.001 ether}(1, "Developer Starter Grant");
         // controller.depositReward{value: 0.001 ether}(2, "Open Source Champion");
         // controller.depositReward{value: 0.001 ether}(3, "GitHub Power User");
+
+        // Fund blocsoc grants program
+        controller.depositReward{value: 0.001 ether}(5, "blocsoc grants");
 
         // Deploy MockUSDC and fund program 4
         MockUSDC usdc = new MockUSDC();

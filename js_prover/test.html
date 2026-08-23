@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="dist/prover.bundle.js"></script>
+</head>
+<body>
+    <script>
+        setTimeout(async () => {
+            const res = await window.VeilProver.buildRailgunShieldRequest(
+                "0x8cB1EBd2638d984703F47aaf85f7DAbecbd1D574", 
+                "5000000", 
+                "0zk1qyqqfwrf7sk7pku3gl0a4ulqydh86nmlmg6ffc7f4vj6cx3t2qaftrv7j6fe3z53la4pw5yrywehw9f8k2qgnj7y2x6hne79julkm907kzaxtq8yml0x5pggnmz"
+            );
+            console.log("RESULT_JSON", res);
+        }, 1000);
+    </script>
+</body>
+</html>

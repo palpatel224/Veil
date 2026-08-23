@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+import 'package:web3dart/web3dart.dart';
 import '../services/database_service.dart';
 
 class ProofService {
@@ -95,6 +97,72 @@ class ProofService {
     return null;
   }
 
+  static Uint8List _hexToBytes(String hex) {
+    final clean = hex.startsWith('0x') ? hex.substring(2) : hex;
+    final bytes = Uint8List(clean.length ~/ 2);
+    for (int i = 0; i < bytes.length; i++) {
+      bytes[i] = int.parse(clean.substring(i * 2, i * 2 + 2), radix: 16);
+    }
+    return bytes;
+  }
+
+  static Future<List<dynamic>?> buildRailgunShieldRequest(String tokenAddress, BigInt amount, String receiver0zkAddress) async {
+    await initProver();
+    final scriptBody = """
+        try {
+          var res = await window.VeilProver.buildRailgunShieldRequest('$tokenAddress', '${amount.toString()}', '$receiver0zkAddress');
+          return res;
+        } catch(e) {
+          console.error('buildRailgunShieldRequest threw:', e);
+          return JSON.stringify({success: false, error: e.message || e.toString()});
+        }
+    """;
+    final asyncResult = await _headlessWebView!.webViewController?.callAsyncJavaScript(functionBody: scriptBody);
+    if (asyncResult != null && asyncResult.value != null) {
+       final resStr = asyncResult.value as String;
+       final resMap = jsonDecode(resStr);
+       if (resMap['success'] == true) {
+         final req = resMap['shieldRequest'];
+         
+         final npk = _hexToBytes(req[0][0]);
+         final token = [
+           BigInt.from(req[0][1][0]),
+           EthereumAddress.fromHex(req[0][1][1]),
+           BigInt.parse(req[0][1][2].toString())
+         ];
+         final value = BigInt.parse(req[0][2].toString());
+         
+         final bundle = [
+           _hexToBytes(req[1][0][0]),
+           _hexToBytes(req[1][0][1]),
+           _hexToBytes(req[1][0][2]),
+         ];
+         final shieldKey = _hexToBytes(req[1][1]);
+         
+         return [
+           [npk, token, value],
+           [bundle, shieldKey]
+         ];
+       } else {
+          final jsError = resMap['error']?.toString() ?? 'unknown JS error';
+          debugPrint('Railgun shield request error: $jsError');
+          throw Exception('RailgunJS: $jsError');
+       }
+    }
+    return null;
+  }
+
+  static List<dynamic> emptyShieldRequest() {
+    final zero32 = Uint8List(32);
+    final zeroAddress = EthereumAddress.fromHex('0x0000000000000000000000000000000000000000');
+    final token = [BigInt.zero, zeroAddress, BigInt.zero];
+    final preimage = [zero32, token, BigInt.zero];
+    final ciphertext = [
+      List<Uint8List>.generate(3, (_) => Uint8List(32)),
+      zero32,
+    ];
+    return [preimage, ciphertext];
+  }
 
   /// Generates a Zero-Knowledge Proof for the Veil Universal Circuit via WASM JS bridge.
   static Future<Map<String, dynamic>> generateProof({

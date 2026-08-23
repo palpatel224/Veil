@@ -17,7 +17,6 @@ pragma solidity ^0.8.20;
  *      - publicInputs[1] : SHA256("prs_threshold:<minPrs>") as uint256
  */
 contract SimulatedVerifier {
-
     /// @notice Minimum proof length: 512 bytes = 1024 hex characters.
     uint256 public constant PROOF_MIN_LENGTH = 1024;
 
@@ -33,14 +32,23 @@ contract SimulatedVerifier {
      * @param publicInputs Array of 2 uint256 values (hashed thresholds).
      * @return True if the proof is structurally valid and commitment is non-zero.
      */
-    function verify(
+    function verifyProof(
         bytes calldata proof,
         uint256[] calldata publicInputs
     ) external pure returns (bool) {
         // Basic structural checks
-        require(proof.length >= PROOF_MIN_LENGTH / 2, "SimulatedVerifier: proof too short");
-        require(publicInputs.length == 2, "SimulatedVerifier: need 2 public inputs");
-        require(publicInputs[0] != 0, "SimulatedVerifier: balance input is zero");
+        require(
+            proof.length >= PROOF_MIN_LENGTH / 2,
+            "SimulatedVerifier: proof too short"
+        );
+        require(
+            publicInputs.length == 2,
+            "SimulatedVerifier: need 2 public inputs"
+        );
+        require(
+            publicInputs[0] != 0,
+            "SimulatedVerifier: balance input is zero"
+        );
         require(publicInputs[1] != 0, "SimulatedVerifier: prs input is zero");
 
         // Extract the first 32 bytes as the commitment word

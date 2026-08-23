@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:web3dart/web3dart.dart';
 import 'database_service.dart';
+import 'proof_service.dart';
 
 /// Result returned after attempting to submit a proof on-chain.
 class ClaimResult {
@@ -12,11 +13,16 @@ class ClaimResult {
   final String? explorerUrl;
   final String? error;
 
+  /// True if the reward was shielded into RAILGUN's private pool instead of
+  /// being sent as a plain public transfer to [recipientAddress].
+  final bool isShielded;
+
   const ClaimResult({
     required this.success,
     this.txHash,
     this.explorerUrl,
     this.error,
+    this.isShielded = false,
   });
 }
 
@@ -28,28 +34,37 @@ class ClaimResult {
 ///   NullifierRegistry : 0x523030E89291C95cD8F7743f4C4B1433ff5383a6
 ///   PayoutController  : 0x54b76c42BF69FA5b62637A4d0E5f9B46A58AE6c0
 class BlockchainService {
+  static final EthereumAddress _zeroAddress = EthereumAddress.fromHex(
+    '0x0000000000000000000000000000000000000000',
+  );
+
   // ── Network Config ──────────────────────────────────────────────────────────
   static String _getRpcUrl(int programId) {
-    if (programId == 5) return 'https://rpc.testnet.arc.network';
+    if (programId == 101) return 'https://rpc.testnet.arc.network';
     return 'https://ethereum-sepolia-rpc.publicnode.com';
   }
 
   static String _getExplorerBase(int programId) {
-    if (programId == 5) return 'https://testnet.arcanescan.com/tx'; // Adjust as needed
+    if (programId == 101)
+      return 'https://testnet.arcanescan.com/tx'; // Adjust as needed
     return 'https://sepolia.etherscan.io/tx';
   }
 
   static int _getChainId(int programId) {
-    if (programId == 5) return 5042002;
+    if (programId == 101) return 5042002;
     return 11155111;
   }
 
   // ── Deployed Contract Addresses ─────────────────────────────────────────────
   static EthereumAddress _getPayoutControllerAddress(int programId) {
-    if (programId == 5) {
-      return EthereumAddress.fromHex('0xB012655ba9cb837B93B70Adea3BCDfE488e11571'); // ARC Testnet
+    if (programId == 101) {
+      return EthereumAddress.fromHex(
+        '0xB012655ba9cb837B93B70Adea3BCDfE488e11571',
+      ); // ARC Testnet
     }
-    return EthereumAddress.fromHex('0xBb06731dfD073843c827794F6049cEA28E39A238'); // Sepolia
+    return EthereumAddress.fromHex(
+      '0x9d42102FC751caF76F611f62Dd2e34f1d5C266Bd',
+    ); // Sepolia
   }
 
   // ── PayoutController ABI ─────────────────────────────────────────────────────
@@ -64,7 +79,38 @@ class BlockchainService {
         { "name": "proof",         "type": "bytes"   },
         { "name": "publicInputs",  "type": "uint256[]" },
         { "name": "nullifierHash", "type": "bytes32" },
-        { "name": "recipient",     "type": "address" }
+        { "name": "recipient",     "type": "address" },
+        {
+          "name": "shieldRequest",
+          "type": "tuple",
+          "components": [
+            {
+              "name": "preimage",
+              "type": "tuple",
+              "components": [
+                { "name": "npk", "type": "bytes32" },
+                {
+                  "name": "token",
+                  "type": "tuple",
+                  "components": [
+                    { "name": "tokenType", "type": "uint8" },
+                    { "name": "tokenAddress", "type": "address" },
+                    { "name": "tokenSubID", "type": "uint256" }
+                  ]
+                },
+                { "name": "value", "type": "uint120" }
+              ]
+            },
+            {
+              "name": "ciphertext",
+              "type": "tuple",
+              "components": [
+                { "name": "encryptedBundle", "type": "bytes32[3]" },
+                { "name": "shieldKey", "type": "bytes32" }
+              ]
+            }
+          ]
+        }
       ],
       "outputs": []
     },
@@ -79,6 +125,20 @@ class BlockchainService {
         { "name": "name",      "type": "string"  },
         { "name": "rewardWei", "type": "uint256" }
       ]
+    },
+    {
+      "name": "programTokens",
+      "type": "function",
+      "stateMutability": "view",
+      "inputs": [ { "name": "", "type": "uint256" } ],
+      "outputs": [ { "name": "", "type": "address" } ]
+    },
+    {
+      "name": "railgun",
+      "type": "function",
+      "stateMutability": "view",
+      "inputs": [],
+      "outputs": [ { "name": "", "type": "address" } ]
     }
   ]''';
 
@@ -136,12 +196,51 @@ class BlockchainService {
       );
       final claimFunction = contract.function('claimReward');
 
-      // 5. Estimate gas
-      if (onStatus != null) onStatus('Estimating gas...');
-      final recipient = EthereumAddress.fromHex(recipientAddress);
+      // 5. Look up whether this program pays out in ERC20 (shielded via RAILGUN)
+      //    or native ETH/ARC (plain transfer) — see PayoutController._executePayout().
+      if (onStatus != null) onStatus('Checking program payout type...');
+      final tokenResult = await client.call(
+        contract: contract,
+        function: contract.function('programTokens'),
+        params: [BigInt.from(programId)],
+      );
+      final programToken = tokenResult[0] as EthereumAddress;
+      final isShielded = programToken != _zeroAddress;
+
+      // For on-chain verification, recipient must be EthereumAddress
+      // If shielded, the actual recipient is encoded in the ShieldRequest, and the smart contract ignores this field.
+      final recipient = isShielded 
+          ? EthereumAddress.fromHex('0x0000000000000000000000000000000000000000') 
+          : EthereumAddress.fromHex(recipientAddress);
+      List<dynamic> shieldRequest;
+      if (isShielded) {
+        if (onStatus != null) onStatus('Preparing shielded RAILGUN note...');
+        final programResult = await client.call(
+          contract: contract,
+          function: contract.function('getProgram'),
+          params: [BigInt.from(programId)],
+        );
+        final rewardWei = programResult[1] as BigInt;
+        
+        final req = await ProofService.buildRailgunShieldRequest(
+          programToken.hex,
+          rewardWei,
+          recipientAddress,
+        );
+        if (req == null) throw Exception("Failed to build Railgun Shield Request");
+        shieldRequest = req;
+      } else {
+        shieldRequest = ProofService.emptyShieldRequest();
+      }
 
       // 6. Send the transaction
-      if (onStatus != null) onStatus('Submitting to blockchain...');
+      if (onStatus != null) {
+        onStatus(
+          isShielded
+              ? 'Shielding reward into RAILGUN privacy pool...'
+              : 'Submitting to blockchain...',
+        );
+      }
       final txHash = await client.sendTransaction(
         credentials,
         Transaction.callContract(
@@ -153,13 +252,15 @@ class BlockchainService {
             publicInputsBigInt,
             nullifierHash,
             recipient,
+            shieldRequest,
           ],
-          maxGas: 500000,
+          maxGas: 800000,
         ),
         chainId: chainId,
       );
 
-      if (onStatus != null) onStatus('Transaction submitted! Waiting for confirmation...');
+      if (onStatus != null)
+        onStatus('Transaction submitted! Waiting for confirmation...');
 
       // Poll for receipt
       TransactionReceipt? receipt;
@@ -177,7 +278,8 @@ class BlockchainService {
           success: false,
           txHash: txHash,
           explorerUrl: '$explorerBase/$txHash',
-          error: 'Transaction failed on-chain (reverted). Check Etherscan for details.',
+          error:
+              'Transaction failed on-chain (reverted). Check Etherscan for details.',
         );
       } else if (receipt == null) {
         return ClaimResult(
@@ -188,18 +290,21 @@ class BlockchainService {
         );
       }
 
-      final dateStr = '${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}';
+      final dateStr =
+          '${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}';
       String amountStr = '+0.001 sETH';
       String title = 'Proof Verified';
       String subtitle = 'Verified Program';
       if (programId == 4) subtitle = 'USDC Tester Grant';
-      if (programId == 5) subtitle = 'ARC Testnet Grant';
+      if (programId == 5) subtitle = 'blocsoc grants';
+      if (programId == 101) subtitle = 'ARC Testnet Grant';
       if (programId == 6) subtitle = 'ETH Hacker Grant';
       if (programId == 7) subtitle = 'USDC Power User';
       if (programId == 9 || programId == 11) subtitle = 'Starter Grant';
-      
-      if (programId == 4) amountStr = '+1.00 USDC';
-      if (programId == 5) amountStr = '+1.00 ARC';
+
+      if (programId == 4) amountStr = '+5.00 USDC';
+      if (programId == 5) amountStr = '+0.001 SETH';
+      if (programId == 101) amountStr = '+1.00 ARC';
       if (programId == 6) amountStr = '+0.001 ETH';
       if (programId == 7) amountStr = '+2.00 USDC';
       if (programId == 9 || programId == 11) amountStr = '+15.00 USDC';
@@ -221,12 +326,10 @@ class BlockchainService {
         success: true,
         txHash: txHash,
         explorerUrl: '$explorerBase/$txHash',
+        isShielded: isShielded,
       );
     } catch (e) {
-      return ClaimResult(
-        success: false,
-        error: _parseError(e.toString()),
-      );
+      return ClaimResult(success: false, error: _parseError(e.toString()));
     }
   }
 
@@ -263,6 +366,34 @@ class BlockchainService {
     }
   }
 
+  /// Verification helper: reads the RAILGUN pool address wired into
+  /// PayoutController via setRailgunSmartWallet(). Returns null on read failure,
+  /// or the zero address if the owner hasn't wired it up yet.
+  static Future<String?> getRailgunPoolAddress(int programId) async {
+    try {
+      final rpcUrl = _getRpcUrl(programId);
+      final payoutControllerAddress = _getPayoutControllerAddress(programId);
+
+      final client = Web3Client(rpcUrl, http.Client());
+      final contract = DeployedContract(
+        ContractAbi.fromJson(_payoutControllerAbi, 'PayoutController'),
+        payoutControllerAddress,
+      );
+
+      final result = await client.call(
+        contract: contract,
+        function: contract.function('railgun'),
+        params: [],
+      );
+
+      await client.dispose();
+
+      return (result[0] as EthereumAddress).hex;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Private Helpers ──────────────────────────────────────────────────────────
 
   /// Converts a hex proof string to raw bytes for ABI encoding.
@@ -293,6 +424,12 @@ class BlockchainService {
     }
     if (raw.contains('InvalidProof')) {
       return 'Proof verification failed on-chain.';
+    }
+    if (raw.contains('RailgunNotConfigured')) {
+      return 'This program pays out via RAILGUN, but the pool isn\'t wired up yet.';
+    }
+    if (raw.contains('ShieldRequestMismatch')) {
+      return 'Shielded note did not match the program\'s token/amount.';
     }
     if (raw.contains('insufficient funds')) {
       return 'Wallet has insufficient ETH for gas fees.';

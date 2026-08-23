@@ -5,18 +5,25 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "build": "webpack --mode production",
+    "build": "webpack --mode development",
     "test": "node src/index.js"
   },
   "dependencies": {
     "@ezkljs/engine": "^22.0.1",
+    "@kohaku-eth/provider": "^0.1.0-alpha.8",
+    "@kohaku-eth/railgun": "^0.0.1-alpha.29",
     "@reclaimprotocol/js-sdk": "^5.8.2",
+    "@scure/bip32": "^2.2.0",
+    "@scure/bip39": "^2.2.0",
+    "browser-level": "^3.0.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
+    "ethers": "^6.17.0",
     "os-browserify": "^0.3.0",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
-    "stream-browserify": "^3.0.0"
+    "stream-browserify": "^3.0.0",
+    "viem": "^2.31.0"
   },
   "devDependencies": {
     "webpack": "^5.109.2",

@@ -196,11 +196,13 @@ class BlockchainService {
       if (programId == 5) subtitle = 'ARC Testnet Grant';
       if (programId == 6) subtitle = 'ETH Hacker Grant';
       if (programId == 7) subtitle = 'USDC Power User';
+      if (programId == 9 || programId == 11) subtitle = 'Starter Grant';
       
       if (programId == 4) amountStr = '+1.00 USDC';
       if (programId == 5) amountStr = '+1.00 ARC';
       if (programId == 6) amountStr = '+0.001 ETH';
       if (programId == 7) amountStr = '+2.00 USDC';
+      if (programId == 9 || programId == 11) amountStr = '+15.00 USDC';
 
       try {
         await DatabaseService().addTransaction(

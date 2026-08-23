@@ -23,13 +23,13 @@ class Program {
 // Hardcoded for MVP. In production, this would be fetched from the VeilRegistry smart contract.
 const List<Program> availablePrograms = [
   Program(
-    id: 0,
+    id: 10,
     name: "Starter Grant",
     sponsor: "BlocSoc WEC NITK",
     description: "For NITK students starting in Web3. Prove you have merged >= 3 PRs.",
     requiredMinBalance: 0.0,
     requiredMinPrs: 3,
-    reward: "\$10 USDC",
+    reward: "\$15 USDC",
     category: "Grants",
   ),
 

@@ -17,7 +17,7 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final LlmService _llmService = LlmService();
-  
+
   final List<Map<String, dynamic>> _messages = [];
   bool _isTyping = false;
 
@@ -29,16 +29,14 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
 
   Future<void> _sendMessage(String text, {bool isEligibility = false}) async {
     if (text.trim().isEmpty) return;
-    
+
     setState(() {
       _messages.add({'role': 'user', 'text': text});
       _isTyping = true;
       _controller.clear();
     });
-    
+
     _scrollToBottom();
-
-
 
     // Process intent via LLM
     final intentData = await _llmService.parseIntent(text);
@@ -52,26 +50,26 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     bool isEligible = true;
 
     if (intent == 'CHECK_ELIGIBILITY' || intent == 'GENERATE_PROOF') {
-      final targetStrRaw = intentData['target']?.toString().toLowerCase().replaceAll('_', ' ') ?? '';
-      final targetWords = targetStrRaw.split(' ').where((w) => w.length > 2).toList();
-      
-      // Find the closest program match
+      final target =
+          intentData['target']
+              ?.toString()
+              .toLowerCase()
+              .replaceAll('_', ' ')
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim() ??
+          '';
+
       try {
-        targetProgram = availablePrograms.firstWhere(
-          (p) {
-            final pName = p.name.toLowerCase();
-            final pSponsor = p.sponsor.toLowerCase();
-            if (targetWords.isEmpty) return false;
-            return targetWords.any((word) => pName.contains(word) || pSponsor.contains(word));
-          }
-        );
+        targetProgram = availablePrograms.firstWhere((p) {
+          return p.name.toLowerCase() == target ||
+              p.sponsor.toLowerCase() == target;
+        });
       } catch (e) {
-        // Fallback to first if no match
-        targetProgram = availablePrograms.isNotEmpty ? availablePrograms.first : null;
+        targetProgram = null;
       }
-      
-      isEligibilityIntent = true;
-      
+
+      isEligibilityIntent = targetProgram != null;
+
       if (targetProgram != null) {
         // Calculate eligibility dynamically
         final db = DatabaseService();
@@ -79,9 +77,12 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
         final address = await db.getMetric('recipient_wallet');
         if (address != null && address.isNotEmpty) {
           try {
-             final balances = await WalletService.fetchBalances(address);
-             // Rough total balance equivalent in USD for evaluation
-             userBalance = (balances['ETH'] ?? 0) * 3000 + (balances['USDC'] ?? 0) + (balances['ARC'] ?? 0);
+            final balances = await WalletService.fetchBalances(address);
+            // Rough total balance equivalent in USD for evaluation
+            userBalance =
+                (balances['ETH'] ?? 0) * 3000 +
+                (balances['USDC'] ?? 0) +
+                (balances['ARC'] ?? 0);
           } catch (e) {}
         } else {
           final balStr = await db.getMetric('total_balance') ?? '0';
@@ -95,29 +96,42 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
         if (targetProgram.requiredMinBalance > 0) {
           bool met = userBalance >= targetProgram.requiredMinBalance;
           if (!met) isEligible = false;
-          criteria.add({'label': 'Balance >= \$${targetProgram.requiredMinBalance}', 'met': met});
+          criteria.add({
+            'label': 'Balance >= \$${targetProgram.requiredMinBalance}',
+            'met': met,
+          });
         }
         if (targetProgram.requiredMinPrs > 0) {
           bool met = userPrs >= targetProgram.requiredMinPrs;
           if (!met) isEligible = false;
-          criteria.add({'label': 'GitHub PRs >= ${targetProgram.requiredMinPrs}', 'met': met});
+          criteria.add({
+            'label': 'GitHub PRs >= ${targetProgram.requiredMinPrs}',
+            'met': met,
+          });
         }
         if (criteria.isEmpty) {
           criteria.add({'label': 'No special requirements', 'met': true});
         }
       }
 
-      if (intent == 'CHECK_ELIGIBILITY') {
+      if (targetProgram == null) {
+        botText =
+            'I could not match that to an available program. Please use the exact name of a listed program.';
+      } else if (intent == 'CHECK_ELIGIBILITY') {
         if (isEligible) {
-          botText = 'I analyzed your local private data for ${targetProgram?.name ?? 'the program'}. You appear to meet the eligibility requirements.';
+          botText =
+              'I analyzed your local private data for ${targetProgram.name}. You appear to meet the eligibility requirements.';
         } else {
-          botText = 'I analyzed your local private data for ${targetProgram?.name ?? 'the program'}. You do not currently meet all the requirements.';
+          botText =
+              'I analyzed your local private data for ${targetProgram.name}. You do not currently meet all the requirements.';
         }
       } else {
         if (isEligible) {
-           botText = 'Ready to generate a zero-knowledge proof for ${targetProgram?.name ?? 'the program'}.';
+          botText =
+              'Ready to generate a zero-knowledge proof for ${targetProgram.name}.';
         } else {
-           botText = 'You do not meet the requirements to generate a proof for ${targetProgram?.name ?? 'the program'}.';
+          botText =
+              'You do not meet the requirements to generate a proof for ${targetProgram.name}.';
         }
       }
     } else if (intent == 'FIND_ELIGIBLE_PROGRAMS') {
@@ -126,8 +140,11 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
       final address = await db.getMetric('recipient_wallet');
       if (address != null && address.isNotEmpty) {
         try {
-           final balances = await WalletService.fetchBalances(address);
-           userBalance = (balances['ETH'] ?? 0) * 3000 + (balances['USDC'] ?? 0) + (balances['ARC'] ?? 0);
+          final balances = await WalletService.fetchBalances(address);
+          userBalance =
+              (balances['ETH'] ?? 0) * 3000 +
+              (balances['USDC'] ?? 0) +
+              (balances['ARC'] ?? 0);
         } catch (e) {}
       } else {
         final balStr = await db.getMetric('total_balance') ?? '0';
@@ -140,16 +157,20 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
 
       List<Program> eligible = [];
       for (var p in availablePrograms) {
-        if ((p.requiredMinBalance == 0 || userBalance >= p.requiredMinBalance) && 
+        if ((p.requiredMinBalance == 0 ||
+                userBalance >= p.requiredMinBalance) &&
             (p.requiredMinPrs == 0 || userPrs >= p.requiredMinPrs)) {
           eligible.add(p);
         }
       }
 
       if (eligible.isEmpty) {
-        botText = 'I analyzed your local private data, but you do not currently meet the requirements for any available programs.';
+        botText =
+            'I analyzed your local private data, but you do not currently meet the requirements for any available programs.';
       } else {
-        botText = 'I analyzed your local private data. You are eligible for:\n\n' + eligible.map((p) => '• ${p.name}').join('\n');
+        botText =
+            'I analyzed your local private data. You are eligible for:\n\n' +
+            eligible.map((p) => '• ${p.name}').join('\n');
       }
     } else if (intent == 'CHECK_BALANCE') {
       botText = 'I checked your shielded wallet. Could not retrieve balance.';
@@ -158,13 +179,19 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
         final address = await db.getMetric('recipient_wallet');
         if (address != null && address.isNotEmpty) {
           final balances = await WalletService.fetchBalances(address);
-          botText = 'I checked your shielded wallet.\n\nBalances:\nETH: ${balances['ETH']?.toStringAsFixed(4) ?? '0'}\nUSDC: ${balances['USDC']?.toStringAsFixed(2) ?? '0'}\nARC: ${balances['ARC']?.toStringAsFixed(2) ?? '0'}';
+          botText =
+              'I checked your shielded wallet.\n\nBalances:\nETH: ${balances['ETH']?.toStringAsFixed(4) ?? '0'}\nUSDC: ${balances['USDC']?.toStringAsFixed(2) ?? '0'}\nARC: ${balances['ARC']?.toStringAsFixed(2) ?? '0'}';
         }
       } catch (e) {
-        botText = 'I checked your shielded wallet, but encountered an error: $e';
+        botText =
+            'I checked your shielded wallet, but encountered an error: $e';
       }
+    } else if (intent == 'UNSUPPORTED') {
+      botText =
+          intentData['message']?.toString() ??
+          'I cannot process that request securely right now.';
     } else {
-      botText = intentData['message'] ?? 'I processed your request locally.';
+      botText = 'I cannot process that request securely right now.';
     }
 
     if (!mounted) return;
@@ -200,7 +227,15 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('PrivatePilot', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+        title: const Text(
+          'PrivatePilot',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
+        ),
         centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -217,7 +252,10 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
           Expanded(
             child: ListView(
               controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 24.0,
+              ),
               children: [
                 if (_messages.isEmpty) ...[
                   const SizedBox(height: 32),
@@ -231,44 +269,93 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                             shape: BoxShape.circle,
                             border: Border.all(color: AppColors.mutedGrey),
                           ),
-                          child: const Icon(Icons.auto_awesome, color: AppColors.secondaryAccent, size: 48),
+                          child: const Icon(
+                            Icons.auto_awesome,
+                            color: AppColors.secondaryAccent,
+                            size: 48,
+                          ),
                         ),
                         const SizedBox(height: 24),
-                        const Text('PrivatePilot', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                        const Text(
+                          'PrivatePilot',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
                         const SizedBox(height: 8),
-                        const Text('Your on-device AI assistant.', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+                        const Text(
+                          'Your on-device AI assistant.',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 16,
+                          ),
+                        ),
                         const SizedBox(height: 48),
-                        _buildPromptCard('Check eligibility for Web3 Starter Grant', 'Check eligibility for a specific program.', Icons.verified_user_outlined, true),
+                        _buildPromptCard(
+                          'Check eligibility for Web3 Starter Grant',
+                          'Check eligibility for a specific program.',
+                          Icons.verified_user_outlined,
+                          true,
+                        ),
                         const SizedBox(height: 16),
-                        _buildPromptCard('Find Eligible Programs', 'Discover which grants you qualify for based on local data.', Icons.insights_outlined, false),
+                        _buildPromptCard(
+                          'Find Eligible Programs',
+                          'Discover which grants you qualify for based on local data.',
+                          Icons.insights_outlined,
+                          false,
+                        ),
                         const SizedBox(height: 16),
-                        _buildPromptCard('Check Shielded Balance', 'View your private wallet balances securely.', Icons.account_balance_wallet_outlined, false),
+                        _buildPromptCard(
+                          'Check Shielded Balance',
+                          'View your private wallet balances securely.',
+                          Icons.account_balance_wallet_outlined,
+                          false,
+                        ),
                       ],
                     ),
                   ),
                 ] else ...[
                   // Chat Messages
-                  ..._messages.map((msg) => Padding(
-                    padding: const EdgeInsets.only(bottom: 24.0),
-                    child: msg['role'] == 'user' 
-                        ? _buildUserMessage(msg['text']) 
-                        : _buildBotMessage(
-                            msg['text'], 
-                            msg['isEligibility'] ?? false, 
-                            program: msg['program'],
-                            criteria: msg['criteria'],
-                            isEligible: msg['isEligible'] ?? false,
-                          ),
-                  )),
-                  
+                  ..._messages.map(
+                    (msg) => Padding(
+                      padding: const EdgeInsets.only(bottom: 24.0),
+                      child: msg['role'] == 'user'
+                          ? _buildUserMessage(msg['text'])
+                          : _buildBotMessage(
+                              msg['text'],
+                              msg['isEligibility'] ?? false,
+                              program: msg['program'],
+                              criteria: msg['criteria'],
+                              isEligible: msg['isEligible'] ?? false,
+                            ),
+                    ),
+                  ),
+
                   if (_isTyping)
                     const Padding(
                       padding: EdgeInsets.only(bottom: 24.0),
                       child: Row(
                         children: [
-                          CircleAvatar(backgroundColor: AppColors.surface, radius: 16, child: Icon(Icons.auto_awesome, size: 16, color: AppColors.secondaryAccent)),
+                          CircleAvatar(
+                            backgroundColor: AppColors.surface,
+                            radius: 16,
+                            child: Icon(
+                              Icons.auto_awesome,
+                              size: 16,
+                              color: AppColors.secondaryAccent,
+                            ),
+                          ),
                           SizedBox(width: 12),
-                          Text('Thinking locally...', style: TextStyle(color: AppColors.secondaryText, fontStyle: FontStyle.italic)),
+                          Text(
+                            'Thinking locally...',
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -279,14 +366,18 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
           // Chat Input
           Container(
             padding: EdgeInsets.only(
-              left: 20, 
-              right: 20, 
-              top: 16, 
-              bottom: MediaQuery.of(context).viewInsets.bottom > 0 ? 16 : 120
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom > 0 ? 16 : 120,
             ),
             decoration: BoxDecoration(
               color: AppColors.background.withValues(alpha: 0.95),
-              border: Border(top: BorderSide(color: AppColors.mutedGrey.withValues(alpha: 0.3))),
+              border: Border(
+                top: BorderSide(
+                  color: AppColors.mutedGrey.withValues(alpha: 0.3),
+                ),
+              ),
             ),
             child: Column(
               children: [
@@ -297,19 +388,32 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.surface,
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.5)),
+                          border: Border.all(
+                            color: AppColors.mutedGrey.withValues(alpha: 0.5),
+                          ),
                         ),
                         child: TextField(
                           controller: _controller,
-                          style: const TextStyle(color: Colors.white, fontSize: 15),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                          ),
                           onSubmitted: (val) => _sendMessage(val),
                           decoration: InputDecoration(
                             hintText: 'Ask anything...',
-                            hintStyle: const TextStyle(color: AppColors.secondaryText),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            hintStyle: const TextStyle(
+                              color: AppColors.secondaryText,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
                             border: InputBorder.none,
                             suffixIcon: IconButton(
-                              icon: const Icon(Icons.arrow_upward, color: AppColors.secondaryAccent),
+                              icon: const Icon(
+                                Icons.arrow_upward,
+                                color: AppColors.secondaryAccent,
+                              ),
                               onPressed: () => _sendMessage(_controller.text),
                             ),
                           ),
@@ -322,9 +426,19 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.shield_outlined, color: AppColors.secondaryText, size: 14),
+                    Icon(
+                      Icons.shield_outlined,
+                      color: AppColors.secondaryText,
+                      size: 14,
+                    ),
                     SizedBox(width: 8),
-                    Text('Processing runs locally. Data never leaves your device.', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                    Text(
+                      'Processing runs locally. Data never leaves your device.',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -344,35 +458,67 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
-              color: AppColors.surface, 
-              borderRadius: BorderRadius.circular(24).copyWith(bottomRight: const Radius.circular(4)), 
-              border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.3))
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(
+                24,
+              ).copyWith(bottomRight: const Radius.circular(4)),
+              border: Border.all(
+                color: AppColors.mutedGrey.withValues(alpha: 0.3),
+              ),
             ),
-            child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 15)),
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildBotMessage(String text, bool isEligibility, {Program? program, List<dynamic>? criteria, bool isEligible = false}) {
+  Widget _buildBotMessage(
+    String text,
+    bool isEligibility, {
+    Program? program,
+    List<dynamic>? criteria,
+    bool isEligible = false,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const CircleAvatar(backgroundColor: AppColors.surface, radius: 16, child: Icon(Icons.auto_awesome, size: 16, color: AppColors.secondaryAccent)),
+        const CircleAvatar(
+          backgroundColor: AppColors.surface,
+          radius: 16,
+          child: Icon(
+            Icons.auto_awesome,
+            size: 16,
+            color: AppColors.secondaryAccent,
+          ),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(24).copyWith(topLeft: const Radius.circular(4)),
-              border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(
+                24,
+              ).copyWith(topLeft: const Radius.circular(4)),
+              border: Border.all(
+                color: AppColors.mutedGrey.withValues(alpha: 0.3),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(text, style: const TextStyle(color: Colors.white, height: 1.5, fontSize: 15)),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    height: 1.5,
+                    fontSize: 15,
+                  ),
+                ),
                 if (isEligibility) ...[
                   const SizedBox(height: 20),
                   Container(
@@ -380,22 +526,49 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.mutedGrey.withValues(alpha: 0.5)),
+                      border: Border.all(
+                        color: AppColors.mutedGrey.withValues(alpha: 0.5),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (criteria != null)
-                          ...criteria.map((c) => _buildCheckRow(c['label'] as String, isMet: c['met'] as bool)),
+                          ...criteria.map(
+                            (c) => _buildCheckRow(
+                              c['label'] as String,
+                              isMet: c['met'] as bool,
+                            ),
+                          ),
                         if (criteria == null)
-                          _buildCheckRow('Checked eligibility locally', isMet: true),
-                        
+                          _buildCheckRow(
+                            'Checked eligibility locally',
+                            isMet: true,
+                          ),
+
                         const Divider(color: AppColors.mutedGrey, height: 24),
                         Row(
                           children: [
-                            Icon(isEligible ? Icons.verified : Icons.cancel, color: isEligible ? AppColors.secondaryAccent : Colors.redAccent, size: 20),
+                            Icon(
+                              isEligible ? Icons.verified : Icons.cancel,
+                              color: isEligible
+                                  ? AppColors.secondaryAccent
+                                  : Colors.redAccent,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
-                            Text(isEligible ? 'Eligible for Proof' : 'Not Eligible', style: TextStyle(color: isEligible ? Colors.white : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text(
+                              isEligible
+                                  ? 'Eligible for Proof'
+                                  : 'Not Eligible',
+                              style: TextStyle(
+                                color: isEligible
+                                    ? Colors.white
+                                    : Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -407,18 +580,29 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => GenerateProofScreen(program: program)));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  GenerateProofScreen(program: program),
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryAccent, 
+                          backgroundColor: AppColors.primaryAccent,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                         ),
-                        child: const Text('Generate Proof →', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          'Generate Proof →',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
-                    )
-                ]
+                    ),
+                ],
               ],
             ),
           ),
@@ -427,7 +611,12 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
     );
   }
 
-  Widget _buildPromptCard(String title, String subtitle, IconData icon, bool triggersEligibility) {
+  Widget _buildPromptCard(
+    String title,
+    String subtitle,
+    IconData icon,
+    bool triggersEligibility,
+  ) {
     return InkWell(
       onTap: () => _sendMessage(title, isEligibility: triggersEligibility),
       borderRadius: BorderRadius.circular(16),
@@ -442,7 +631,10 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.secondaryAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: AppColors.secondaryAccent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Icon(icon, color: AppColors.secondaryAccent, size: 24),
             ),
             const SizedBox(width: 16),
@@ -450,13 +642,30 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: AppColors.secondaryText, size: 16),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: AppColors.secondaryText,
+              size: 16,
+            ),
           ],
         ),
       ),
@@ -468,9 +677,19 @@ class _PrivatePilotScreenState extends State<PrivatePilotScreen> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
-          Icon(isMet ? Icons.check_circle : Icons.cancel, color: isMet ? AppColors.secondaryAccent : Colors.redAccent, size: 16),
+          Icon(
+            isMet ? Icons.check_circle : Icons.cancel,
+            color: isMet ? AppColors.secondaryAccent : Colors.redAccent,
+            size: 16,
+          ),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
